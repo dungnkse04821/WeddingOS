@@ -249,4 +249,80 @@ class SupabaseService {
       'lifecycle_status': 'ACTIVE',
     });
   }
+
+  /// Preview event date change impact (TOP-EVT-002)
+  Future<Map<String, dynamic>> previewEventDateChange({
+    required String eventId,
+    DateTime? targetExactDate,
+    int? targetExpectedYear,
+    int? targetExpectedMonth,
+  }) async {
+    final response = await client.rpc(
+      'preview_event_date_change',
+      params: {
+        'p_event_id': eventId,
+        'p_target_exact_date': targetExactDate?.toIso8601String().split('T').first,
+        'p_target_expected_year': targetExpectedYear,
+        'p_target_expected_month': targetExpectedMonth,
+      },
+    );
+    return Map<String, dynamic>.from(response as Map);
+  }
+
+  /// Commit event date change (TOP-EVT-002)
+  Future<Map<String, dynamic>> commitEventDateChange({
+    required String eventId,
+    DateTime? targetExactDate,
+    int? targetExpectedYear,
+    int? targetExpectedMonth,
+    required String impactFingerprint,
+    String batchActionC = 'KEEP',
+  }) async {
+    final response = await client.rpc(
+      'commit_event_date_change',
+      params: {
+        'p_event_id': eventId,
+        'p_target_exact_date': targetExactDate?.toIso8601String().split('T').first,
+        'p_target_expected_year': targetExpectedYear,
+        'p_target_expected_month': targetExpectedMonth,
+        'p_impact_fingerprint': impactFingerprint,
+        'p_batch_action_c': batchActionC,
+      },
+    );
+    return Map<String, dynamic>.from(response as Map);
+  }
+
+  /// Preview event removal impact (TOP-EVT-003)
+  Future<Map<String, dynamic>> previewEventRemoval({
+    required String eventId,
+  }) async {
+    final response = await client.rpc(
+      'preview_event_removal',
+      params: {
+        'p_event_id': eventId,
+      },
+    );
+    return Map<String, dynamic>.from(response as Map);
+  }
+
+  /// Commit event removal (TOP-EVT-003)
+  Future<Map<String, dynamic>> commitEventRemoval({
+    required String eventId,
+    required String impactFingerprint,
+    List<String> deleteTasks = const [],
+    List<String> preserveTasks = const [],
+  }) async {
+    final response = await client.rpc(
+      'commit_event_removal',
+      params: {
+        'p_event_id': eventId,
+        'p_impact_fingerprint': impactFingerprint,
+        'p_explicit_choices': {
+          'delete_tasks': deleteTasks,
+          'preserve_tasks': preserveTasks,
+        },
+      },
+    );
+    return Map<String, dynamic>.from(response as Map);
+  }
 }

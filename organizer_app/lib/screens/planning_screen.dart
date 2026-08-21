@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../models/task_model.dart';
 import '../services/supabase_service.dart';
 import 'task_detail_screen.dart';
+import 'event_date_change_preview_screen.dart';
+import 'event_removal_preview_screen.dart';
 
 class PlanningScreen extends StatefulWidget {
   final String weddingId;
@@ -166,6 +168,28 @@ class _PlanningScreenState extends State<PlanningScreen> {
           backgroundColor: Colors.redAccent,
         ),
       );
+    }
+  }
+
+  Future<void> _navigateToDateChangePreview(Map<String, dynamic> event) async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => EventDateChangePreviewScreen(event: event),
+      ),
+    );
+    if (result != null) {
+      _loadData();
+    }
+  }
+
+  Future<void> _navigateToRemovalPreview(Map<String, dynamic> event) async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => EventRemovalPreviewScreen(event: event),
+      ),
+    );
+    if (result != null) {
+      _loadData();
     }
   }
 
@@ -478,6 +502,87 @@ class _PlanningScreenState extends State<PlanningScreen> {
     );
   }
 
+  Widget _buildEventsSection(ThemeData theme) {
+    if (_events.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      height: 95,
+      padding: const EdgeInsets.only(bottom: 12, top: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161226).withOpacity(0.3),
+        border: const Border(bottom: BorderSide(color: Colors.white10)),
+      ),
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        scrollDirection: Axis.horizontal,
+        itemCount: _events.length,
+        itemBuilder: (context, index) {
+          final event = _events[index];
+          final isMain = event['is_main_event'] == true;
+          
+          return Container(
+            width: 220,
+            margin: const EdgeInsets.only(right: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isMain ? Colors.pinkAccent.withOpacity(0.3) : Colors.white10,
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        event['name'] as String,
+                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        event['exact_date'] != null
+                            ? (event['exact_date'] as String)
+                            : 'Tháng ${event['expected_month']}/${event['expected_year']}',
+                        style: TextStyle(
+                          color: isMain ? Colors.pinkAccent : Colors.white54,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit_calendar_rounded, size: 16, color: Colors.blueAccent),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: () => _navigateToDateChangePreview(event),
+                    ),
+                    const SizedBox(height: 8),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded, size: 16, color: Colors.redAccent),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: () => _navigateToRemovalPreview(event),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildTaskDashboard(ThemeData theme) {
     // 1. Apply filtering & search
     final filtered = _tasks.where((t) {
@@ -499,6 +604,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
 
     return Column(
       children: [
+        _buildEventsSection(theme),
         // Search & Filter Panel
         Container(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
