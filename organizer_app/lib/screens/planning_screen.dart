@@ -615,6 +615,16 @@ class _PlanningScreenState extends State<PlanningScreen> {
       if (task.dateOffset != null) {
         deadlineStr += ' (T${task.dateOffset! >= 0 ? '+' : ''}${task.dateOffset} days)';
       }
+    } else if (task.weddingEventId != null && task.dateOffset != null) {
+      final linkedEvent = _events.firstWhere((e) => e['id'] == task.weddingEventId, orElse: () => {});
+      if (linkedEvent.isNotEmpty) {
+        final name = linkedEvent['name'] as String? ?? 'Event';
+        if (linkedEvent['expected_month'] != null && linkedEvent['expected_year'] != null) {
+          deadlineStr = 'T${task.dateOffset! >= 0 ? '+' : ''}${task.dateOffset}d rel. to $name (Exp: ${linkedEvent['expected_month']}/${linkedEvent['expected_year']})';
+        } else {
+          deadlineStr = 'T${task.dateOffset! >= 0 ? '+' : ''}${task.dateOffset}d rel. to $name';
+        }
+      }
     }
 
     final isOverdue = task.isOverdue;

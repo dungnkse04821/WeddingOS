@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(33); -- Plan 33 assertions
+SELECT plan(38); -- Plan 38 assertions
 
 -- ===========================================================================
 -- TEST SETUP
@@ -94,7 +94,7 @@ SELECT throws_ok(
 -- SECTION 2: TASK CONSTRAINTS & ASSIGNEE INTEGRITY
 -- ===========================================================================
 
--- 5. Fail: Try to assign task in Wedding A to a member in another wedding (or doesn't exist)
+-- 5. Fail: Try to assign task in Wedding A to a member in another wedding
 SELECT throws_ok(
   $$
   INSERT INTO public.tasks (wedding_id, name, deadline_intent, date_offset, wedding_event_id, assignee_wedding_member_id)
@@ -107,9 +107,9 @@ SELECT throws_ok(
     '44444444-4444-4444-4444-444444444444' -- invalid member
   );
   $$,
-  '45000',
+  '45000', -- Custom integrity trigger throws active assignee check
   'Assignee member must be active and belong to the same wedding.',
-  'Should reject assignee if not foreign keyed to same wedding_id.'
+  'Should reject assignee if not active member in same wedding.'
 );
 
 -- 6. Succeed: Assign task to active member in the same wedding
@@ -129,7 +129,8 @@ SELECT lives_ok(
   'Should succeed when assignee is active in the same wedding.'
 );
 
--- 7. Insert a task with active member B first to simulate historical assignment
+-- 7. Succeed: Edit unrelated field (name) on Task with a now-REVOKED member assigned to it
+-- Insert a task with member B before revocation check (simulate historical link)
 INSERT INTO public.tasks (id, wedding_id, name, deadline_intent, date_offset, wedding_event_id, assignee_wedding_member_id)
 VALUES (
   'd2222222-2222-2222-2222-222222222222',
@@ -141,12 +142,10 @@ VALUES (
   '99999999-9999-9999-9999-999999999999' -- User B (Active at insertion)
 );
 
--- 8. Revoke assignee member B
 UPDATE public.wedding_members 
 SET status = 'REVOKED' 
 WHERE id = '99999999-9999-9999-9999-999999999999';
 
--- 9. Succeed: Edit unrelated field (name) on Task with a now-REVOKED member assigned to it
 SELECT lives_ok(
   $$
   UPDATE public.tasks 
@@ -162,14 +161,25 @@ SET status = 'ACTIVE'
 WHERE id = '99999999-9999-9999-9999-999999999999';
 
 -- ===========================================================================
--- SECTION 3: PROVENANCE PROTECTION TESTS
+-- SECTION 3: TEMPLATE DATABASE TABLE REMOVAL (IMPL-CONFLICT-001)
+-- ===========================================================================
+
+-- 8. Verify no plan_template_tasks table exists in any schema
+SELECT hasnt_table(
+  'internal',
+  'plan_template_tasks',
+  'internal.plan_template_tasks table must not exist'
+);
+
+-- ===========================================================================
+-- SECTION 4: TASK PROVENANCE - CREATE VS UPDATE (IMPL-CONFLICT-002)
 -- ===========================================================================
 
 -- Simulate ordinary client connection (role = authenticated)
 SET ROLE authenticated;
 SET request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111"}';
 
--- 10. Fail: Client tries to insert specifying task_source directly (denied by column grant)
+-- 9. Fail: Client tries to insert specifying task_source directly (denied by column grant)
 SELECT throws_ok(
   $$
   INSERT INTO public.tasks (wedding_id, name, deadline_intent, date_offset, wedding_event_id, task_source)
@@ -180,7 +190,7 @@ SELECT throws_ok(
   'Client insert specifying task_source directly must be blocked by Column-level Grants.'
 );
 
--- 11. Fail: Client tries to insert specifying is_user_modified directly (denied by column grant)
+-- 10. Fail: Client tries to insert specifying is_user_modified directly (denied by column grant)
 SELECT throws_ok(
   $$
   INSERT INTO public.tasks (wedding_id, name, deadline_intent, date_offset, wedding_event_id, is_user_modified)
@@ -191,7 +201,7 @@ SELECT throws_ok(
   'Client insert specifying is_user_modified directly must be blocked by Column-level Grants.'
 );
 
--- 12. Succeed: Client inserts task WITHOUT specifying protected columns
+-- 11. Succeed: Client inserts task WITHOUT specifying protected columns
 SELECT lives_ok(
   $$
   INSERT INTO public.tasks (id, wedding_id, name, deadline_intent, date_offset, wedding_event_id)
@@ -207,7 +217,7 @@ SELECT lives_ok(
   'Client insert without protected columns should succeed.'
 );
 
--- 13. Verify: Omitted columns default to USER and false via trigger
+-- 12. Verify: Omitted columns default to USER and false via trigger
 SELECT results_eq(
   $$
   SELECT task_source, is_user_modified 
@@ -220,7 +230,7 @@ SELECT results_eq(
   'Client insert triggers must default task_source to USER and is_user_modified to false.'
 );
 
--- 14. Fail: Client tries to update task_source or is_user_modified directly (denied by column grant)
+-- 13. Fail: Client tries to update is_user_modified directly (denied by column grant)
 SELECT throws_ok(
   $$
   UPDATE public.tasks 
@@ -230,6 +240,18 @@ SELECT throws_ok(
   '42501',
   NULL,
   'Client direct updates to is_user_modified must be blocked by Column-level Grants.'
+);
+
+-- 14. Fail: Client tries to update task_source directly (denied by column grant)
+SELECT throws_ok(
+  $$
+  UPDATE public.tasks 
+  SET task_source = 'SYSTEM_TEMPLATE' 
+  WHERE id = 'd3333333-3333-3333-3333-333333333333';
+  $$,
+  '42501',
+  NULL,
+  'Client direct updates to task_source must be blocked by Column-level Grants.'
 );
 
 -- 15. Succeed: Client updates core field (name)
@@ -255,14 +277,49 @@ SELECT results_eq(
   'Trigger must automatically set is_user_modified to true when core fields are modified.'
 );
 
--- Restore admin/owner context for next server checks
+-- 17. Verify: Editing SYSTEM_TEMPLATE task preserves task_source and sets is_user_modified to true
+-- Setup: create system template task as postgres/owner
+RESET ROLE;
+INSERT INTO public.tasks (id, wedding_id, name, deadline_intent, date_offset, wedding_event_id, task_source, is_user_modified)
+VALUES (
+  'd6666666-6666-6666-6666-666666666666',
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+  'Original System Task',
+  'SYSTEM_RELATIVE',
+  -45,
+  'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+  'SYSTEM_TEMPLATE',
+  false
+);
+
+-- As client, update task name
+SET ROLE authenticated;
+SET request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111"}';
+
+UPDATE public.tasks 
+SET name = 'Modified System Task' 
+WHERE id = 'd6666666-6666-6666-6666-666666666666';
+
+SELECT results_eq(
+  $$
+  SELECT task_source, is_user_modified 
+  FROM public.tasks 
+  WHERE id = 'd6666666-6666-6666-6666-666666666666';
+  $$,
+  $$
+  VALUES ('SYSTEM_TEMPLATE'::varchar, true);
+  $$,
+  'Client edits to system template task must preserve SYSTEM_TEMPLATE source and flip is_user_modified to true.'
+);
+
+-- Restore admin context for calculations
 RESET ROLE;
 
 -- ===========================================================================
--- SECTION 4: DEADLINE INTENT & RESOLVED DEADLINE CALCULATION
+-- SECTION 5: DEADLINE CALCULATIONS & DATE CASCADE BOUNDARY (IMPL-CONFLICT-003)
 -- ===========================================================================
 
--- 11. Relative deadline calculation: check correct date addition (2026-12-18 + (-30) = 2026-11-18)
+-- 18. Relative deadline calculation: check correct date addition (2026-12-18 + (-30) = 2026-11-18)
 SELECT results_eq(
   $$
   SELECT resolved_deadline_at 
@@ -275,12 +332,10 @@ SELECT results_eq(
   'SYSTEM_RELATIVE deadline resolves correctly according to event exact_date + date_offset.'
 );
 
--- 12. Unresolved expected month task deadline: exact date NULL -> resolved_deadline_at NULL
--- Create an event with expected month only
+-- 19. Expected Month relative task deadline: exact date NULL -> resolved_deadline_at NULL (no fake exact due date)
 INSERT INTO public.wedding_events (id, wedding_id, name, expected_year, expected_month)
 VALUES ('d5555555-5555-5555-5555-555555555555', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Engagement expected month', 2026, 6);
 
--- Insert relative task linked to expected month event
 INSERT INTO public.tasks (id, wedding_id, name, deadline_intent, date_offset, wedding_event_id)
 VALUES (
   'd4444444-4444-4444-4444-444444444444',
@@ -300,10 +355,28 @@ SELECT results_eq(
   $$
   VALUES (NULL::date);
   $$,
-  'Expected Month relative tasks must leave resolved_deadline_at as NULL.'
+  'Expected Month relative tasks must leave resolved_deadline_at as NULL, avoiding fake dates.'
 );
 
--- 13. Dynamic Event Date change cascade: update event date, recalculate tasks
+-- 20. Fail: Client direct UPDATE of event dates must be blocked (IMPL-CONFLICT-003)
+SET ROLE authenticated;
+SET request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111"}';
+
+SELECT throws_ok(
+  $$
+  UPDATE public.wedding_events 
+  SET exact_date = '2026-12-25' 
+  WHERE id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+  $$,
+  '42501',
+  NULL,
+  'Direct Class-B UPDATE of exact_date by client must be blocked by Column-level Grants.'
+);
+
+-- Restore postgres admin role to perform system changes
+RESET ROLE;
+
+-- 21. Succeed: System/trusted update of Event exact_date cascades and updates deadlines
 UPDATE public.wedding_events 
 SET exact_date = '2026-12-20' 
 WHERE id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
@@ -320,7 +393,7 @@ SELECT results_eq(
   'Active relative tasks must automatically cascade and update deadlines when event date changes.'
 );
 
--- 14. Historical Completed task deadline protection:
+-- 22. Succeed: Completed task resolved deadline remains historical (not overwritten)
 -- Set task to COMPLETED
 UPDATE public.tasks 
 SET status = 'COMPLETED' 
@@ -343,16 +416,16 @@ SELECT results_eq(
   'Completed tasks must freeze and preserve historical resolved_deadline_at snapshots.'
 );
 
--- Restore task status for progress test
+-- Restore task status
 UPDATE public.tasks 
 SET status = 'TODO' 
 WHERE id = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
 
 -- ===========================================================================
--- SECTION 5: INITIAL PLAN TRUSTED OPERATION (TOP-WED-002)
+-- SECTION 6: INITIAL PLAN & SUGGESTED EVENTS GENERATION
 -- ===========================================================================
 
--- 15. Create a new test wedding B (which has no main event yet)
+-- Create a new test wedding B (which has no main event yet)
 INSERT INTO public.weddings (id, name, cultural_context, expected_year, expected_month)
 VALUES ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Wedding B', 'VIETNAMESE', 2026, 12);
 
@@ -361,31 +434,31 @@ INSERT INTO public.wedding_members (id, wedding_id, user_id, role, status, displ
 VALUES (
   '77777777-7777-7777-7777-777777777777',
   'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-  '11111111-1111-1111-1111-111111111111', -- User A is owner of Wedding B too
+  '11111111-1111-1111-1111-111111111111',
   'OWNER',
   'ACTIVE',
   'USER A',
   'user.a@example.com'
 );
 
--- Simulate User A role authenticated
+-- Authenticated User A context
 SET ROLE authenticated;
 SET request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111"}';
 
--- 16. Fail: Call generate_initial_plan without main event configured
+-- 23. Fail: Call generate_initial_plan without main event configured
 SELECT throws_ok(
   $$
   SELECT api_v1.generate_initial_plan('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
   $$,
-  '45000', -- Custom SQL exception SQLSTATE
+  '45000',
   'MAIN_EVENT_REQUIRED: Wedding must have a main event configured first.',
   'Calling generate_initial_plan on a wedding with no active main event must fail.'
 );
 
--- Restore postgres superuser to insert main event
+-- Restore admin
 RESET ROLE;
 
--- Insert Main Event for Wedding B (using Expected Month date precision)
+-- Insert Main Event for Wedding B (Expected Month)
 INSERT INTO public.wedding_events (id, wedding_id, name, expected_year, expected_month, is_main_event)
 VALUES (
   'dddddddd-2222-2222-2222-222222222222',
@@ -399,7 +472,7 @@ VALUES (
 -- Set back to authenticated user
 SET ROLE authenticated;
 
--- 17. Success: First-time plan generation
+-- 24. Success: First-time plan generation replayed = false
 SELECT results_eq(
   $$
   SELECT (api_v1.generate_initial_plan('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb') ->> 'replayed')::boolean;
@@ -410,7 +483,7 @@ SELECT results_eq(
   'First plan generation must run and return replayed = false.'
 );
 
--- 18. Success: Verify initial_plan_generated_at timestamp is set on weddings
+-- 25. Success: Verify initial_plan_generated_at timestamp is set on weddings
 SELECT results_eq(
   $$
   SELECT (initial_plan_generated_at IS NOT NULL) 
@@ -423,7 +496,7 @@ SELECT results_eq(
   'initial_plan_generated_at timestamp must be set on the weddings table.'
 );
 
--- 19. Success: Verify plan task generation content (VIETNAMESE template has 7 tasks)
+-- 26. Success: Verify plan task generation content (VIETNAMESE template has 7 tasks)
 SELECT results_eq(
   $$
   SELECT count(*)::integer 
@@ -436,35 +509,36 @@ SELECT results_eq(
   'Traditional Vietnamese plan generation should generate exactly 7 template tasks.'
 );
 
--- 20. Success: Verify tasks are created with SYSTEM_TEMPLATE provenance
+-- 27. Success: Verify suggested event generation (VIETNAMESE template has 2 suggested events)
 SELECT results_eq(
   $$
   SELECT count(*)::integer 
-  FROM public.tasks 
-  WHERE wedding_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' 
-    AND task_source = 'SYSTEM_TEMPLATE';
+  FROM public.wedding_events 
+  WHERE wedding_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+    AND is_main_event = false;
   $$,
   $$
-  VALUES (7);
+  VALUES (2);
   $$,
-  'Generated plan tasks must inherit SYSTEM_TEMPLATE provenance.'
+  'Traditional Vietnamese plan generation should generate exactly 2 suggested events.'
 );
 
--- 21. Success: Verify expected month relative task deadlines resolve to NULL
+-- 28. Success: Verify task is linked to suggested event (e.g. Prep mâm quả linked to Lễ ăn hỏi)
 SELECT results_eq(
   $$
-  SELECT count(*)::integer 
-  FROM public.tasks 
-  WHERE wedding_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' 
-    AND resolved_deadline_at IS NOT NULL;
+  SELECT e.name 
+  FROM public.tasks t
+  JOIN public.wedding_events e ON t.wedding_event_id = e.id
+  WHERE t.wedding_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+    AND t.name = 'Chuẩn bị mâm quả & sính lễ đám hỏi';
   $$,
   $$
-  VALUES (0);
+  VALUES ('Lễ ăn hỏi & đám hỏi'::varchar);
   $$,
-  'Expected Month relative task deadlines must evaluate to NULL.'
+  'Task must be linked to its corresponding suggested event in the template.'
 );
 
--- 22. Success: Retry plan generation: replayed = true, no duplicates
+-- 29. Success: Retry plan generation: replayed = true
 SELECT results_eq(
   $$
   SELECT (api_v1.generate_initial_plan('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb') ->> 'replayed')::boolean;
@@ -472,10 +546,10 @@ SELECT results_eq(
   $$
   VALUES (true);
   $$,
-  'Subsequent calls to generate_initial_plan must replay cached plan tasks and return replayed = true.'
+  'Subsequent calls to generate_initial_plan must return replayed = true.'
 );
 
--- 23. Success: Verify tasks count did not change (no duplication)
+-- 30. Success: Verify tasks count did not change (no duplication)
 SELECT results_eq(
   $$
   SELECT count(*)::integer 
@@ -488,7 +562,14 @@ SELECT results_eq(
   'Subsequent replayed calls must not create duplicate plan tasks.'
 );
 
--- 24. Success: Replay after user modification: preserves modified state
+-- 31. Success: Verify budget items count is 0 (table does not exist yet under DEC-B-001 / REQ-01)
+SELECT hasnt_table(
+  'public',
+  'budget_items',
+  'budget_items table must not exist yet, ensuring no budget items are created'
+);
+
+-- 32. Success: Replay after user modification: preserves current state
 -- Modify one task's name
 UPDATE public.tasks 
 SET name = 'Chuẩn bị mâm quả - Modified' 
@@ -507,14 +588,13 @@ SELECT results_eq(
   $$
   VALUES (1);
   $$,
-  'Plan replay returns the current workspace tasks state instead of rewriting from the static template.'
+  'Plan replay returns current state and does not reconstruct the original template tasks.'
 );
 
 -- ===========================================================================
--- SECTION 6: PLANNING RLS TENANT ISOLATION TESTS
+-- SECTION 7: PLANNING RLS TENANT ISOLATION TESTS
 -- ===========================================================================
 
--- 25. Authenticated User A (only member of A & B) selects from Wedding C (does not belong)
 -- Create wedding C owned by User B only
 RESET ROLE;
 INSERT INTO public.weddings (id, name, exact_date)
@@ -536,21 +616,21 @@ VALUES ('eeeeeeee-3333-3333-3333-333333333333', 'cccccccc-cccc-cccc-cccc-ccccccc
 SET ROLE authenticated;
 SET request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111"}';
 
--- 26. Tenant isolation: User A SELECT from events in C (must return 0 rows)
+-- 33. Tenant isolation: User A SELECT from events in C (must return 0 rows)
 SELECT is(
   (SELECT count(*)::integer FROM public.wedding_events WHERE wedding_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc'),
   0,
   'RLS prevents members of Wedding A/B from reading events of Wedding C.'
 );
 
--- 27. Tenant isolation: User A SELECT from tasks in C (must return 0 rows)
+-- 34. Tenant isolation: User A SELECT from tasks in C (must return 0 rows)
 SELECT is(
   (SELECT count(*)::integer FROM public.tasks WHERE wedding_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc'),
   0,
   'RLS prevents members of Wedding A/B from reading tasks of Wedding C.'
 );
 
--- 28. Cross-referencing: User A tries to insert task in Wedding A referencing Event in C (must throw violation)
+-- 35. Cross-referencing: User A tries to insert task in Wedding A referencing Event in C (must throw violation)
 SELECT throws_ok(
   $$
   INSERT INTO public.tasks (wedding_id, name, deadline_intent, date_offset, wedding_event_id)
@@ -568,10 +648,10 @@ SELECT throws_ok(
 );
 
 -- ===========================================================================
--- SECTION 7: CLASS-B SIMPLE MUTATION ACCESS TESTS
+-- SECTION 8: CLASS-B SIMPLE MUTATION ACCESS TESTS
 -- ===========================================================================
 
--- 29. User A can insert a new USER task directly
+-- 36. User A can insert a new USER task directly
 SELECT lives_ok(
   $$
   INSERT INTO public.tasks (wedding_id, name, deadline_intent, side)
@@ -580,7 +660,7 @@ SELECT lives_ok(
   'Ordinary authenticated member can insert USER task directly under Class-B rules.'
 );
 
--- 30. User A can UPDATE tasks fields (status, side, assignee, name)
+-- 37. User A can UPDATE tasks fields (status, side, assignee, name)
 SELECT lives_ok(
   $$
   UPDATE public.tasks 
@@ -590,7 +670,7 @@ SELECT lives_ok(
   'Ordinary authenticated member can update task fields directly under Class-B rules.'
 );
 
--- 31. Direct DELETE is blocked (Client cannot delete task)
+-- 38. Direct DELETE is blocked (Client cannot delete task)
 SELECT throws_ok(
   $$
   DELETE FROM public.tasks WHERE name = 'My Direct User Task';

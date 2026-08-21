@@ -2,7 +2,7 @@
 
 ## Giai đoạn Hiện tại
 
-Implementation -> M0 Implementation Decision Gate — In Review
+Implementation -> M2A.1: Planning Foundation + Initial Wedding Plan — In Review
 
 ## Tình trạng Dự án
 
@@ -82,7 +82,8 @@ Tập trung vào các mảng cốt lõi:
 *   **Technical Architecture Final Review:** 🟢 **Đã Phê duyệt (Approved)** - Chi tiết tại [09-technical-architecture-final-review.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/architecture/09-technical-architecture-final-review.md)
 *   **MVP Backlog:** 🟢 **Đã Phê duyệt (Approved)** - Chi tiết tại [10-mvp-backlog.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/planning/10-mvp-backlog.md)
 *   **Implementation Plan:** 🟢 **Đã Phê duyệt (Approved)** - Chi tiết tại [11-implementation-plan.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/planning/11-implementation-plan.md)
-*   **M0 Implementation Decision Gate:** 🟡 **Đang chờ duyệt (In Review)** - Chi tiết tại [12-m0-implementation-decision-gate.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/12-m0-implementation-decision-gate.md)
+*   **M0 Implementation Decision Gate:** 🟢 **Đã Phê duyệt (Approved)** - Chi tiết tại [12-m0-implementation-decision-gate.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/12-m0-implementation-decision-gate.md)
+*   **M2A.1 Planning Foundation:** 🟡 **Đang chờ duyệt (In Review)** - Chi tiết tại [14-m2a1-planning-foundation.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/14-m2a1-planning-foundation.md)
 
 ## Các câu hỏi mở cần Product Owner làm rõ về Kiến trúc
 

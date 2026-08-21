@@ -1,8 +1,4 @@
 -- BATCH-02: Planning Core & Initial Plan
-CREATE SCHEMA IF NOT EXISTS internal;
-
--- Ensure trusted_function_owner has access to internal schema
-GRANT USAGE ON SCHEMA internal TO trusted_function_owner;
 
 -- ==========================================
 -- 1. WEDDING_EVENTS TABLE
@@ -79,44 +75,7 @@ CREATE TABLE public.tasks (
 );
 
 -- ==========================================
--- 3. PLAN TEMPLATES CONFIG (DEC-B-001)
--- ==========================================
-CREATE TABLE internal.plan_template_tasks (
-  id               serial       PRIMARY KEY,
-  cultural_context varchar(50)  NOT NULL,
-  name             varchar(255) NOT NULL,
-  date_offset      integer      NOT NULL,
-  deadline_intent  varchar(50)  NOT NULL DEFAULT 'SYSTEM_RELATIVE',
-  side             varchar(50)  NOT NULL DEFAULT 'COMMON'
-);
-
--- Only trusted operation owner can read template configs
-ALTER TABLE internal.plan_template_tasks OWNER TO trusted_function_owner;
-
--- Populate default plan templates
-INSERT INTO internal.plan_template_tasks (cultural_context, name, date_offset, deadline_intent, side) VALUES
-  ('TUY_CHON', 'Chốt nhà hàng và đặt cọc nơi tổ chức', -180, 'SYSTEM_RELATIVE', 'COMMON'),
-  ('TUY_CHON', 'Lập danh sách khách mời sơ bộ', -120, 'SYSTEM_RELATIVE', 'COMMON'),
-  ('TUY_CHON', 'Thuê trang phục cưới & chụp ảnh', -90, 'SYSTEM_RELATIVE', 'COMMON'),
-  ('TUY_CHON', 'Gửi thiệp cưới đến bạn bè & người thân', -30, 'SYSTEM_RELATIVE', 'COMMON'),
-  ('TUY_CHON', 'Họp mặt ban tổ chức & MC', -7, 'SYSTEM_RELATIVE', 'COMMON'),
-  
-  ('VIETNAMESE', 'Chốt nhà hàng và đặt cọc nơi tổ chức', -180, 'SYSTEM_RELATIVE', 'COMMON'),
-  ('VIETNAMESE', 'Lập danh sách khách mời sơ bộ', -120, 'SYSTEM_RELATIVE', 'COMMON'),
-  ('VIETNAMESE', 'Thuê trang phục cưới & chụp ảnh ngoại cảnh', -90, 'SYSTEM_RELATIVE', 'COMMON'),
-  ('VIETNAMESE', 'Chuẩn bị mâm quả & sính lễ đám hỏi', -45, 'SYSTEM_RELATIVE', 'COMMON'),
-  ('VIETNAMESE', 'Gửi thiệp cưới đến họ hàng & bạn bè', -30, 'SYSTEM_RELATIVE', 'COMMON'),
-  ('VIETNAMESE', 'Lễ dạm ngõ & họp mặt hai gia đình', -14, 'SYSTEM_RELATIVE', 'COMMON'),
-  ('VIETNAMESE', 'Họp mặt ban tổ chức & MC', -7, 'SYSTEM_RELATIVE', 'COMMON'),
-
-  ('WESTERN', 'Book Wedding Venue & Catering deposit', -180, 'SYSTEM_RELATIVE', 'COMMON'),
-  ('WESTERN', 'Draft tentative guest list', -120, 'SYSTEM_RELATIVE', 'COMMON'),
-  ('WESTERN', 'Wedding gown and tuxedo fittings', -90, 'SYSTEM_RELATIVE', 'COMMON'),
-  ('WESTERN', 'Send out formal invitations', -45, 'SYSTEM_RELATIVE', 'COMMON'),
-  ('WESTERN', 'Rehearsal dinner & MC sync', -7, 'SYSTEM_RELATIVE', 'COMMON');
-
--- ==========================================
--- 4. TRIGGERS FOR SECURITY & BUSINESS RULES
+-- 3. TRIGGERS FOR SECURITY & BUSINESS RULES
 -- ==========================================
 
 -- A. Assignee same-wedding & active state check
@@ -150,8 +109,8 @@ CREATE TRIGGER tr_tasks_assignee_integrity_check
 CREATE OR REPLACE FUNCTION public.fn_tasks_provenance_protection()
 RETURNS trigger AS $$
 BEGIN
-  -- If executed via trusted system path (owned by trusted_function_owner)
-  IF CURRENT_USER = 'trusted_function_owner' THEN
+  -- If executed via trusted system path (owned by trusted_function_owner or postgres superuser)
+  IF CURRENT_USER IN ('trusted_function_owner', 'postgres') THEN
     RETURN NEW;
   END IF;
 
@@ -163,6 +122,11 @@ BEGIN
     -- Prevent modification of task_source
     NEW.task_source := OLD.task_source;
     
+    -- Client cannot reset true -> false
+    IF OLD.is_user_modified = true THEN
+      NEW.is_user_modified := true;
+    END IF;
+    
     -- If core fields are modified, set is_user_modified = true
     IF (OLD.name IS DISTINCT FROM NEW.name OR
         OLD.deadline_intent IS DISTINCT FROM NEW.deadline_intent OR
@@ -172,9 +136,6 @@ BEGIN
         OLD.assignee_wedding_member_id IS DISTINCT FROM NEW.assignee_wedding_member_id OR
         OLD.wedding_event_id IS DISTINCT FROM NEW.wedding_event_id) THEN
       NEW.is_user_modified := true;
-    ELSE
-      -- Maintain old value if no core fields modified
-      NEW.is_user_modified := OLD.is_user_modified;
     END IF;
   END IF;
   
@@ -258,7 +219,7 @@ CREATE TRIGGER tr_events_date_change_cascade
   FOR EACH ROW EXECUTE FUNCTION public.fn_events_date_change_cascade();
 
 -- ==========================================
--- 5. TRUSTED RPC OPERATION (TOP-WED-002)
+-- 4. TRUSTED RPC OPERATION (TOP-WED-002)
 -- ==========================================
 
 CREATE OR REPLACE FUNCTION api_v1.generate_initial_plan(
@@ -275,11 +236,60 @@ DECLARE
   v_cultural_context         varchar(50);
   v_main_event_id            uuid;
   v_main_event_exact_date    date;
-  v_task_count               integer;
+  v_main_event_expected_year integer;
+  v_main_event_expected_month integer;
   v_tasks_json               jsonb;
+  
+  -- Version-controlled configuration loaded statically
+  v_templates_json jsonb := '{
+    "TUY_CHON": {
+      "events": [],
+      "tasks": [
+        {"name": "Chốt nhà hàng và đặt cọc nơi tổ chức", "date_offset": -180, "deadline_intent": "SYSTEM_RELATIVE", "side": "COMMON", "link_event": "MAIN_EVENT"},
+        {"name": "Lập danh sách khách mời sơ bộ", "date_offset": -120, "deadline_intent": "SYSTEM_RELATIVE", "side": "COMMON", "link_event": "MAIN_EVENT"},
+        {"name": "Thuê trang phục cưới & chụp ảnh", "date_offset": -90, "deadline_intent": "SYSTEM_RELATIVE", "side": "COMMON", "link_event": "MAIN_EVENT"},
+        {"name": "Gửi thiệp cưới đến bạn bè & người thân", "date_offset": -30, "deadline_intent": "SYSTEM_RELATIVE", "side": "COMMON", "link_event": "MAIN_EVENT"},
+        {"name": "Họp mặt ban tổ chức & MC", "date_offset": -7, "deadline_intent": "SYSTEM_RELATIVE", "side": "COMMON", "link_event": "MAIN_EVENT"}
+      ]
+    },
+    "VIETNAMESE": {
+      "events": [
+        {"name": "Lễ dạm ngõ & họp mặt hai gia đình", "date_offset": -14},
+        {"name": "Lễ ăn hỏi & đám hỏi", "date_offset": -45}
+      ],
+      "tasks": [
+        {"name": "Chốt nhà hàng và đặt cọc nơi tổ chức", "date_offset": -180, "deadline_intent": "SYSTEM_RELATIVE", "side": "COMMON", "link_event": "MAIN_EVENT"},
+        {"name": "Lập danh sách khách mời sơ bộ", "date_offset": -120, "deadline_intent": "SYSTEM_RELATIVE", "side": "COMMON", "link_event": "MAIN_EVENT"},
+        {"name": "Thuê trang phục cưới & chụp ảnh ngoại cảnh", "date_offset": -90, "deadline_intent": "SYSTEM_RELATIVE", "side": "COMMON", "link_event": "MAIN_EVENT"},
+        {"name": "Chuẩn bị mâm quả & sính lễ đám hỏi", "date_offset": 0, "deadline_intent": "SYSTEM_RELATIVE", "side": "COMMON", "link_event": "Lễ ăn hỏi & đám hỏi"},
+        {"name": "Gửi thiệp cưới đến họ hàng & bạn bè", "date_offset": -30, "deadline_intent": "SYSTEM_RELATIVE", "side": "COMMON", "link_event": "MAIN_EVENT"},
+        {"name": "Tiếp đãi khách tại Lễ dạm ngõ", "date_offset": 0, "deadline_intent": "SYSTEM_RELATIVE", "side": "COMMON", "link_event": "Lễ dạm ngõ & họp mặt hai gia đình"},
+        {"name": "Họp mặt ban tổ chức & MC", "date_offset": -7, "deadline_intent": "SYSTEM_RELATIVE", "side": "COMMON", "link_event": "MAIN_EVENT"}
+      ]
+    },
+    "WESTERN": {
+      "events": [
+        {"name": "Rehearsal Dinner", "date_offset": -1}
+      ],
+      "tasks": [
+        {"name": "Book Wedding Venue & Catering deposit", "date_offset": -180, "deadline_intent": "SYSTEM_RELATIVE", "side": "COMMON", "link_event": "MAIN_EVENT"},
+        {"name": "Draft tentative guest list", "date_offset": -120, "deadline_intent": "SYSTEM_RELATIVE", "side": "COMMON", "link_event": "MAIN_EVENT"},
+        {"name": "Wedding gown and tuxedo fittings", "date_offset": -90, "deadline_intent": "SYSTEM_RELATIVE", "side": "COMMON", "link_event": "MAIN_EVENT"},
+        {"name": "Send out formal invitations", "date_offset": -45, "deadline_intent": "SYSTEM_RELATIVE", "side": "COMMON", "link_event": "MAIN_EVENT"},
+        {"name": "Final walkthrough of catering & sync", "date_offset": 0, "deadline_intent": "SYSTEM_RELATIVE", "side": "COMMON", "link_event": "Rehearsal Dinner"}
+      ]
+    }
+  }';
+  
+  v_config                   jsonb;
+  v_event                    jsonb;
+  v_task                     jsonb;
+  v_event_id                 uuid;
+  v_event_name               varchar(255);
+  v_event_offset             integer;
+  v_mapped_event_id          uuid;
 BEGIN
   -- 1. Authorization: check if caller is an active member
-  -- Run internal checks via explicit schema references
   SELECT role INTO v_caller_role
   FROM public.wedding_members
   WHERE wedding_id = p_wedding_id
@@ -291,8 +301,7 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
-  -- 2. Concurrency primitive: lock the wedding row to serialize concurrent first-generation attempts
-  -- Solves concurrent TOP-WED-002 race conditions
+  -- 2. Concurrency primitive: lock the wedding row
   SELECT initial_plan_generated_at, cultural_context
   INTO v_initial_plan_generated, v_cultural_context
   FROM public.weddings
@@ -317,7 +326,8 @@ BEGIN
   END IF;
 
   -- 4. Validate Main Event context exists
-  SELECT id, exact_date INTO v_main_event_id, v_main_event_exact_date
+  SELECT id, exact_date, expected_year, expected_month
+  INTO v_main_event_id, v_main_event_exact_date, v_main_event_expected_year, v_main_event_expected_month
   FROM public.wedding_events
   WHERE wedding_id = p_wedding_id
     AND is_main_event = true
@@ -329,37 +339,100 @@ BEGIN
       USING ERRCODE = '45000';
   END IF;
 
-  -- 5. Generate tasks from static template filtered by cultural context
-  INSERT INTO public.tasks (
-    wedding_id,
-    wedding_event_id,
-    name,
-    status,
-    deadline_intent,
-    date_offset,
-    task_source,
-    is_user_modified,
-    side
-  )
-  SELECT 
-    p_wedding_id,
-    v_main_event_id,
-    t.name,
-    'TODO',
-    t.deadline_intent,
-    t.date_offset,
-    'SYSTEM_TEMPLATE',
-    false,
-    t.side
-  FROM internal.plan_template_tasks t
-  WHERE t.cultural_context = COALESCE(v_cultural_context, 'TUY_CHON');
+  -- Get cultural configuration template from JSON
+  v_config := v_templates_json -> COALESCE(v_cultural_context, 'TUY_CHON');
+  IF v_config IS NULL THEN
+    v_config := v_templates_json -> 'TUY_CHON';
+  END IF;
 
-  -- 6. Set initial_plan_generated_at atomically
+  -- 5. Create local session-isolated mapping for event linkages
+  CREATE TEMP TABLE IF NOT EXISTS temp_event_map (
+    name varchar(255) PRIMARY KEY,
+    id uuid NOT NULL
+  );
+  TRUNCATE temp_event_map;
+  INSERT INTO temp_event_map (name, id) VALUES ('MAIN_EVENT', v_main_event_id);
+
+  -- 6. Generate suggested WeddingEvents
+  FOR v_event IN SELECT * FROM jsonb_array_elements(v_config -> 'events') LOOP
+    v_event_name := v_event ->> 'name';
+    v_event_offset := (v_event ->> 'date_offset')::integer;
+    
+    -- Check if it already exists (idempotency/retry safety)
+    SELECT id INTO v_event_id
+    FROM public.wedding_events
+    WHERE wedding_id = p_wedding_id
+      AND name = v_event_name
+      AND lifecycle_status = 'ACTIVE'
+    LIMIT 1;
+    
+    IF v_event_id IS NULL THEN
+      INSERT INTO public.wedding_events (
+        wedding_id,
+        name,
+        exact_date,
+        expected_year,
+        expected_month,
+        is_main_event,
+        lifecycle_status
+      ) VALUES (
+        p_wedding_id,
+        v_event_name,
+        CASE WHEN v_main_event_exact_date IS NOT NULL THEN v_main_event_exact_date + v_event_offset ELSE NULL END,
+        CASE WHEN v_main_event_exact_date IS NULL THEN v_main_event_expected_year ELSE NULL END,
+        CASE WHEN v_main_event_exact_date IS NULL THEN v_main_event_expected_month ELSE NULL END,
+        false,
+        'ACTIVE'
+      ) RETURNING id INTO v_event_id;
+    END IF;
+    
+    INSERT INTO temp_event_map (name, id)
+    VALUES (v_event_name, v_event_id)
+    ON CONFLICT (name) DO UPDATE SET id = EXCLUDED.id;
+  END LOOP;
+
+  -- 7. Generate tasks from config
+  FOR v_task IN SELECT * FROM jsonb_array_elements(v_config -> 'tasks') LOOP
+    SELECT id INTO v_mapped_event_id
+    FROM temp_event_map
+    WHERE name = (v_task ->> 'link_event');
+    
+    IF v_mapped_event_id IS NULL THEN
+      v_mapped_event_id := v_main_event_id;
+    END IF;
+
+    INSERT INTO public.tasks (
+      wedding_id,
+      wedding_event_id,
+      name,
+      status,
+      deadline_intent,
+      date_offset,
+      task_source,
+      is_user_modified,
+      side
+    ) VALUES (
+      p_wedding_id,
+      v_mapped_event_id,
+      v_task ->> 'name',
+      'TODO',
+      v_task ->> 'deadline_intent',
+      (v_task ->> 'date_offset')::integer,
+      'SYSTEM_TEMPLATE',
+      false,
+      COALESCE(v_task ->> 'side', 'COMMON')
+    );
+  END LOOP;
+
+  -- Drop temporary table
+  DROP TABLE temp_event_map;
+
+  -- 8. Set initial_plan_generated_at atomically
   UPDATE public.weddings
   SET initial_plan_generated_at = now()
   WHERE id = p_wedding_id;
 
-  -- 7. Query and return generated task details
+  -- 9. Query and return generated task details
   SELECT json_agg(t) INTO v_tasks_json
   FROM (
     SELECT id, name, status, deadline_intent, date_offset, resolved_deadline_at, task_source, side, assignee_wedding_member_id
@@ -382,11 +455,10 @@ REVOKE EXECUTE ON FUNCTION api_v1.generate_initial_plan(uuid) FROM PUBLIC;
 
 -- Grant execution permissions
 GRANT EXECUTE ON FUNCTION api_v1.generate_initial_plan(uuid) TO authenticated;
--- Grant trusted_function_owner membership/execution context
 ALTER FUNCTION api_v1.generate_initial_plan(uuid) OWNER TO trusted_function_owner;
 
 -- ==========================================
--- 6. GRANTS AND POLICIES FOR DATA API
+-- 5. GRANTS AND POLICIES FOR DATA API
 -- ==========================================
 
 -- Enable Row Level Security
@@ -424,7 +496,9 @@ CREATE POLICY update_tasks_if_member ON public.tasks
 -- Grants for authenticated role on Class-B columns (excl. task_source & is_user_modified)
 GRANT SELECT ON public.wedding_events TO authenticated;
 GRANT INSERT (id, wedding_id, name, expected_year, expected_month, exact_date, start_time, location, map_link, is_main_event) ON public.wedding_events TO authenticated;
-GRANT UPDATE (name, expected_year, expected_month, exact_date, start_time, location, map_link) ON public.wedding_events TO authenticated;
+
+-- CRITICAL: Omit expected_year, expected_month, exact_date to block direct client date mutation (bypassing TOP-EVT-002)
+GRANT UPDATE (name, start_time, location, map_link) ON public.wedding_events TO authenticated;
 
 GRANT SELECT ON public.tasks TO authenticated;
 GRANT INSERT (id, wedding_id, wedding_event_id, assignee_wedding_member_id, name, status, deadline_intent, date_offset, custom_override_date, completed_at, resolved_deadline_at, side) ON public.tasks TO authenticated;
