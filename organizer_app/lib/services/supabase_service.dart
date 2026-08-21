@@ -3,6 +3,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../foundation/constants.dart';
+import '../models/task_model.dart';
 
 class SupabaseService {
   static final SupabaseService instance = SupabaseService._internal();
@@ -151,12 +152,101 @@ class SupabaseService {
     try {
       final data = await client
           .from('weddings')
-          .select('id, name, target_budget, exact_date, expected_year, expected_month, status')
+          .select('id, name, target_budget, exact_date, expected_year, expected_month, status, initial_plan_generated_at')
           .order('created_at', ascending: false);
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
       if (kDebugMode) print('Error fetching weddings: $e');
       return [];
     }
+  }
+
+  /// Calls api_v1.generate_initial_plan RPC to build default cultural template tasks.
+  Future<Map<String, dynamic>> generateInitialPlan(String weddingId) async {
+    final response = await client.rpc(
+      'generate_initial_plan',
+      params: {
+        'p_wedding_id': weddingId,
+      },
+    );
+    return response as Map<String, dynamic>;
+  }
+
+  /// Fetches all active tasks for the selected wedding workspace.
+  Future<List<TaskModel>> fetchTasks(String weddingId) async {
+    try {
+      final data = await client
+          .from('tasks')
+          .select('*')
+          .eq('wedding_id', weddingId)
+          .order('created_at', ascending: true);
+      
+      return (data as List).map((json) => TaskModel.fromJson(json as Map<String, dynamic>)).toList();
+    } catch (e) {
+      if (kDebugMode) print('Error fetching tasks: $e');
+      rethrow;
+    }
+  }
+
+  /// Directly updates a task's status under Class-B rules.
+  /// Trigger logic handles timestamping/freeze/overrides.
+  Future<void> updateTaskStatus(String taskId, String status) async {
+    await client
+        .from('tasks')
+        .update({
+          'status': status,
+        })
+        .eq('id', taskId);
+  }
+
+  /// Directly creates a new USER task under Class-B rules.
+  Future<void> createCustomTask({
+    required String weddingId,
+    required String name,
+    required String deadlineIntent,
+    int? dateOffset,
+    DateTime? customOverrideDate,
+    String? weddingEventId,
+    String side = 'COMMON',
+  }) async {
+    await client.from('tasks').insert({
+      'wedding_id': weddingId,
+      'name': name,
+      'deadline_intent': deadlineIntent,
+      'date_offset': dateOffset,
+      'custom_override_date': customOverrideDate?.toIso8601String().split('T').first,
+      'wedding_event_id': weddingEventId,
+      'side': side,
+    });
+  }
+
+  /// Fetches all active events of a wedding.
+  Future<List<Map<String, dynamic>>> fetchWeddingEvents(String weddingId) async {
+    final data = await client
+        .from('wedding_events')
+        .select('*')
+        .eq('wedding_id', weddingId)
+        .eq('lifecycle_status', 'ACTIVE')
+        .order('created_at', ascending: true);
+    return List<Map<String, dynamic>>.from(data);
+  }
+
+  /// Creates a Main Event for the wedding workspace.
+  Future<void> createMainEvent({
+    required String weddingId,
+    required String name,
+    DateTime? exactDate,
+    int? expectedYear,
+    int? expectedMonth,
+  }) async {
+    await client.from('wedding_events').insert({
+      'wedding_id': weddingId,
+      'name': name,
+      'exact_date': exactDate?.toIso8601String().split('T').first,
+      'expected_year': expectedYear,
+      'expected_month': expectedMonth,
+      'is_main_event': true,
+      'lifecycle_status': 'ACTIVE',
+    });
   }
 }

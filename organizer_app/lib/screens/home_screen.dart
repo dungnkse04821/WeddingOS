@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
+import '../models/task_model.dart';
 import 'auth_screen.dart';
 import 'wedding_selection_screen.dart';
+import 'planning_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,6 +16,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _loading = true;
   Map<String, dynamic>? _wedding;
   List<Map<String, dynamic>> _members = [];
+  List<TaskModel> _tasks = [];
   String? _errorMessage;
 
   @override
@@ -52,9 +55,16 @@ class _HomeScreenState extends State<HomeScreen> {
           .select('id, display_name, profile_email, role, status')
           .order('created_at', ascending: true);
 
+      // 3. Fetch tasks to compute progress metrics
+      List<TaskModel> taskList = [];
+      if (wResponse['initial_plan_generated_at'] != null) {
+        taskList = await SupabaseService.instance.fetchTasks(selectedId);
+      }
+
       setState(() {
         _wedding = wResponse;
         _members = List<Map<String, dynamic>>.from(mResponse);
+        _tasks = taskList;
         _loading = false;
       });
     } catch (e) {
@@ -117,8 +127,13 @@ class _HomeScreenState extends State<HomeScreen> {
               height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFFFF5E7E).withOpacity(0.06),
-                blurRadius: 120,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFF5E7E).withOpacity(0.06),
+                    blurRadius: 120,
+                    spreadRadius: 150,
+                  ),
+                ],
               ),
             ),
           ),
@@ -213,6 +228,10 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 20),
+
+          // Planning progress card
+          _buildPlanningProgressCard(context),
           const SizedBox(height: 20),
 
           // Workspace overview card
@@ -328,6 +347,147 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlanningProgressCard(BuildContext context) {
+    if (_wedding == null) return const SizedBox.shrink();
+
+    final isGenerated = _wedding!['initial_plan_generated_at'] != null;
+
+    final activeTasks = _tasks.where((t) => t.status != 'CANCELLED').toList();
+    final completedTasks = activeTasks.where((t) => t.status == 'COMPLETED').toList();
+    
+    final total = activeTasks.length;
+    final completed = completedTasks.length;
+    final progress = total > 0 ? (completed / total * 100).round() : 0;
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF6B4EFF).withOpacity(0.12),
+            const Color(0xFFFF5E7E).withOpacity(0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFF6B4EFF).withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.analytics_rounded, color: Color(0xFFFF5E7E), size: 22),
+              const SizedBox(width: 10),
+              Text(
+                'WEDDING PREPARATION PROGRESS',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.7),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const Spacer(),
+              if (isGenerated)
+                Text(
+                  '$progress%',
+                  style: const TextStyle(
+                    color: Color(0xFFFF5E7E),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (!isGenerated) ...[
+            Text(
+              'No Roadmap Configured',
+              style: theme.textTheme.titleMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Generate a customized preparation roadmap based on your cultural preferences to kickstart planning.',
+              style: TextStyle(color: Colors.white38, fontSize: 12, height: 1.4),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6B4EFF),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                minimumSize: const Size(double.infinity, 48),
+              ),
+              onPressed: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => PlanningScreen(weddingId: _wedding!['id'] as String)),
+                );
+                _loadWorkspaceData();
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.auto_awesome_rounded, size: 16),
+                  SizedBox(width: 8),
+                  Text('Generate Preparation Plan', style: TextStyle(fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          ] else ...[
+            Row(
+              children: [
+                Text(
+                  '$completed of $total steps completed',
+                  style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: LinearProgressIndicator(
+                value: total > 0 ? (completed / total) : 0.0,
+                backgroundColor: Colors.white10,
+                color: const Color(0xFFFF5E7E),
+                minHeight: 8,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6B4EFF).withOpacity(0.2),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(color: const Color(0xFF6B4EFF).withOpacity(0.4)),
+                ),
+                minimumSize: const Size(double.infinity, 48),
+                elevation: 0,
+              ),
+              onPressed: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => PlanningScreen(weddingId: _wedding!['id'] as String)),
+                );
+                _loadWorkspaceData();
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.checklist_rounded, size: 16),
+                  SizedBox(width: 8),
+                  Text('Open Planning Checklist', style: TextStyle(fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
