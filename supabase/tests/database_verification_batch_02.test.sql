@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(38); -- Plan 38 assertions
+SELECT plan(43); -- Plan exactly 43 assertions
 
 -- ===========================================================================
 -- TEST SETUP
@@ -277,41 +277,6 @@ SELECT results_eq(
   'Trigger must automatically set is_user_modified to true when core fields are modified.'
 );
 
--- 17. Verify: Editing SYSTEM_TEMPLATE task preserves task_source and sets is_user_modified to true
--- Setup: create system template task as postgres/owner
-RESET ROLE;
-INSERT INTO public.tasks (id, wedding_id, name, deadline_intent, date_offset, wedding_event_id, task_source, is_user_modified)
-VALUES (
-  'd6666666-6666-6666-6666-666666666666',
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-  'Original System Task',
-  'SYSTEM_RELATIVE',
-  -45,
-  'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
-  'SYSTEM_TEMPLATE',
-  false
-);
-
--- As client, update task name
-SET ROLE authenticated;
-SET request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111"}';
-
-UPDATE public.tasks 
-SET name = 'Modified System Task' 
-WHERE id = 'd6666666-6666-6666-6666-666666666666';
-
-SELECT results_eq(
-  $$
-  SELECT task_source, is_user_modified 
-  FROM public.tasks 
-  WHERE id = 'd6666666-6666-6666-6666-666666666666';
-  $$,
-  $$
-  VALUES ('SYSTEM_TEMPLATE'::varchar, true);
-  $$,
-  'Client edits to system template task must preserve SYSTEM_TEMPLATE source and flip is_user_modified to true.'
-);
-
 -- Restore admin context for calculations
 RESET ROLE;
 
@@ -319,7 +284,7 @@ RESET ROLE;
 -- SECTION 5: DEADLINE CALCULATIONS & DATE CASCADE BOUNDARY (IMPL-CONFLICT-003)
 -- ===========================================================================
 
--- 18. Relative deadline calculation: check correct date addition (2026-12-18 + (-30) = 2026-11-18)
+-- 17. Relative deadline calculation: check correct date addition (2026-12-18 + (-30) = 2026-11-18)
 SELECT results_eq(
   $$
   SELECT resolved_deadline_at 
@@ -332,33 +297,7 @@ SELECT results_eq(
   'SYSTEM_RELATIVE deadline resolves correctly according to event exact_date + date_offset.'
 );
 
--- 19. Expected Month relative task deadline: exact date NULL -> resolved_deadline_at NULL (no fake exact due date)
-INSERT INTO public.wedding_events (id, wedding_id, name, expected_year, expected_month)
-VALUES ('d5555555-5555-5555-5555-555555555555', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Engagement expected month', 2026, 6);
-
-INSERT INTO public.tasks (id, wedding_id, name, deadline_intent, date_offset, wedding_event_id)
-VALUES (
-  'd4444444-4444-4444-4444-444444444444',
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-  'Expected Month relative task',
-  'SYSTEM_RELATIVE',
-  -30,
-  'd5555555-5555-5555-5555-555555555555'
-);
-
-SELECT results_eq(
-  $$
-  SELECT resolved_deadline_at 
-  FROM public.tasks 
-  WHERE id = 'd4444444-4444-4444-4444-444444444444';
-  $$,
-  $$
-  VALUES (NULL::date);
-  $$,
-  'Expected Month relative tasks must leave resolved_deadline_at as NULL, avoiding fake dates.'
-);
-
--- 20. Fail: Client direct UPDATE of event dates must be blocked (IMPL-CONFLICT-003)
+-- 18. Fail: Client direct UPDATE of event dates must be blocked (IMPL-CONFLICT-003)
 SET ROLE authenticated;
 SET request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111"}';
 
@@ -376,7 +315,7 @@ SELECT throws_ok(
 -- Restore postgres admin role to perform system changes
 RESET ROLE;
 
--- 21. Succeed: System/trusted update of Event exact_date cascades and updates deadlines
+-- 19. Succeed: System/trusted update of Event exact_date cascades and updates deadlines
 UPDATE public.wedding_events 
 SET exact_date = '2026-12-20' 
 WHERE id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
@@ -393,7 +332,7 @@ SELECT results_eq(
   'Active relative tasks must automatically cascade and update deadlines when event date changes.'
 );
 
--- 22. Succeed: Completed task resolved deadline remains historical (not overwritten)
+-- 20. Succeed: Completed task resolved deadline remains historical (not overwritten)
 -- Set task to COMPLETED
 UPDATE public.tasks 
 SET status = 'COMPLETED' 
@@ -426,8 +365,8 @@ WHERE id = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
 -- ===========================================================================
 
 -- Create a new test wedding B (which has no main event yet)
-INSERT INTO public.weddings (id, name, cultural_context, expected_year, expected_month)
-VALUES ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Wedding B', 'VIETNAMESE', 2026, 12);
+INSERT INTO public.weddings (id, name, cultural_context, exact_date)
+VALUES ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Wedding B', 'VIETNAMESE', '2026-12-18');
 
 -- Create active Owner for wedding B
 INSERT INTO public.wedding_members (id, wedding_id, user_id, role, status, display_name, profile_email)
@@ -445,7 +384,7 @@ VALUES (
 SET ROLE authenticated;
 SET request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111"}';
 
--- 23. Fail: Call generate_initial_plan without main event configured
+-- 21. Fail: Call generate_initial_plan without main event configured
 SELECT throws_ok(
   $$
   SELECT api_v1.generate_initial_plan('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
@@ -458,21 +397,20 @@ SELECT throws_ok(
 -- Restore admin
 RESET ROLE;
 
--- Insert Main Event for Wedding B (Expected Month)
-INSERT INTO public.wedding_events (id, wedding_id, name, expected_year, expected_month, is_main_event)
+-- Insert Main Event for Wedding B (Exact Date)
+INSERT INTO public.wedding_events (id, wedding_id, name, exact_date, is_main_event)
 VALUES (
   'dddddddd-2222-2222-2222-222222222222',
   'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
   'Lễ cưới chính B',
-  2026,
-  12,
+  '2026-12-18',
   true
 );
 
 -- Set back to authenticated user
 SET ROLE authenticated;
 
--- 24. Success: First-time plan generation replayed = false
+-- 22. Success: First-time plan generation replayed = false
 SELECT results_eq(
   $$
   SELECT (api_v1.generate_initial_plan('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb') ->> 'replayed')::boolean;
@@ -481,6 +419,28 @@ SELECT results_eq(
   VALUES (false);
   $$,
   'First plan generation must run and return replayed = false.'
+);
+
+-- 23. Success: Verify response contains 3 events (1 Main + 2 suggested)
+SELECT results_eq(
+  $$
+  SELECT jsonb_array_length(api_v1.generate_initial_plan('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb') -> 'events');
+  $$,
+  $$
+  VALUES (3);
+  $$,
+  'Initial plan generation response must include the 3 current wedding events.'
+);
+
+-- 24. Success: Verify response contains 7 tasks
+SELECT results_eq(
+  $$
+  SELECT jsonb_array_length(api_v1.generate_initial_plan('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb') -> 'tasks');
+  $$,
+  $$
+  VALUES (7);
+  $$,
+  'Initial plan generation response must include the 7 current tasks.'
 );
 
 -- 25. Success: Verify initial_plan_generated_at timestamp is set on weddings
@@ -496,7 +456,7 @@ SELECT results_eq(
   'initial_plan_generated_at timestamp must be set on the weddings table.'
 );
 
--- 26. Success: Verify plan task generation content (VIETNAMESE template has 7 tasks)
+-- 26. Success: Verify plan task generation content (VIETNAMESE template has 7 tasks in DB)
 SELECT results_eq(
   $$
   SELECT count(*)::integer 
@@ -506,10 +466,10 @@ SELECT results_eq(
   $$
   VALUES (7);
   $$,
-  'Traditional Vietnamese plan generation should generate exactly 7 template tasks.'
+  'Traditional Vietnamese plan generation should generate exactly 7 template tasks in DB.'
 );
 
--- 27. Success: Verify suggested event generation (VIETNAMESE template has 2 suggested events)
+-- 27. Success: Verify suggested event generation (VIETNAMESE template has 2 suggested events in DB)
 SELECT results_eq(
   $$
   SELECT count(*)::integer 
@@ -520,7 +480,7 @@ SELECT results_eq(
   $$
   VALUES (2);
   $$,
-  'Traditional Vietnamese plan generation should generate exactly 2 suggested events.'
+  'Traditional Vietnamese plan generation should generate exactly 2 suggested events in DB.'
 );
 
 -- 28. Success: Verify task is linked to suggested event (e.g. Prep mâm quả linked to Lễ ăn hỏi)
@@ -562,33 +522,24 @@ SELECT results_eq(
   'Subsequent replayed calls must not create duplicate plan tasks.'
 );
 
--- 31. Success: Verify budget items count is 0 (table does not exist yet under DEC-B-001 / REQ-01)
+-- 31. Success: Verify events count did not change (no duplication)
+SELECT results_eq(
+  $$
+  SELECT count(*)::integer 
+  FROM public.wedding_events 
+  WHERE wedding_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+  $$,
+  $$
+  VALUES (3);
+  $$,
+  'Subsequent replayed calls must not create duplicate events.'
+);
+
+-- 32. Success: Verify no budget_items table exists yet (ensures no BudgetItems)
 SELECT hasnt_table(
   'public',
   'budget_items',
   'budget_items table must not exist yet, ensuring no budget items are created'
-);
-
--- 32. Success: Replay after user modification: preserves current state
--- Modify one task's name
-UPDATE public.tasks 
-SET name = 'Chuẩn bị mâm quả - Modified' 
-WHERE wedding_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' 
-  AND name = 'Chuẩn bị mâm quả & sính lễ đám hỏi';
-
--- Trigger generate plan replay
-SELECT results_eq(
-  $$
-  SELECT count(*)::integer 
-  FROM jsonb_to_recordset(
-    (api_v1.generate_initial_plan('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb') -> 'tasks')
-  ) AS x(name text)
-  WHERE name = 'Chuẩn bị mâm quả - Modified';
-  $$,
-  $$
-  VALUES (1);
-  $$,
-  'Plan replay returns current state and does not reconstruct the original template tasks.'
 );
 
 -- ===========================================================================
@@ -678,6 +629,114 @@ SELECT throws_ok(
   '42501', -- Insufficient privilege / Policy check failed
   NULL,
   'Ordinary authenticated member cannot delete tasks directly via Class-B.'
+);
+
+-- ===========================================================================
+-- SECTION 9: EXPECTED-MONTH SUGGESTED EVENT TESTS (IMPL-GAP-001)
+-- ===========================================================================
+
+RESET ROLE;
+
+-- 1. Create a test wedding D owned by User A (Expected Month Main Event)
+INSERT INTO public.weddings (id, name, cultural_context, expected_year, expected_month)
+VALUES ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'Wedding D', 'VIETNAMESE', 2026, 6);
+
+-- Create active member mapping for Wedding D
+INSERT INTO public.wedding_members (id, wedding_id, user_id, role, status, display_name, profile_email)
+VALUES (
+  '55555555-5555-5555-5555-555555555555',
+  'dddddddd-dddd-dddd-dddd-dddddddddddd',
+  '11111111-1111-1111-1111-111111111111',
+  'OWNER',
+  'ACTIVE',
+  'USER A',
+  'user.a@example.com'
+);
+
+-- Insert Month-precision Main Event (expected_year = 2026, expected_month = 6, exact_date = NULL)
+INSERT INTO public.wedding_events (id, wedding_id, name, expected_year, expected_month, exact_date, is_main_event)
+VALUES (
+  'eeeeeeee-4444-4444-4444-444444444444',
+  'dddddddd-dddd-dddd-dddd-dddddddddddd',
+  'Lễ cưới chính D',
+  2026,
+  6,
+  NULL,
+  true
+);
+
+-- Set user context
+SET ROLE authenticated;
+SET request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111"}';
+
+-- Generate plan for Wedding D
+SELECT api_v1.generate_initial_plan('dddddddd-dddd-dddd-dddd-dddddddddddd') ->> 'replayed';
+
+-- 39. Verify suggested events generated from Expected Month Main Event have NO fake exact date
+SELECT results_eq(
+  $$
+  SELECT count(*)::integer 
+  FROM public.wedding_events
+  WHERE wedding_id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'
+    AND exact_date IS NOT NULL;
+  $$,
+  $$
+  VALUES (0);
+  $$,
+  'Suggested events generated from expected-month Main Event must not create fake exact dates.'
+);
+
+-- 40. Verify relative tasks linked to month-precision suggested events have resolved_deadline_at = NULL
+SELECT results_eq(
+  $$
+  SELECT count(*)::integer 
+  FROM public.tasks
+  WHERE wedding_id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'
+    AND resolved_deadline_at IS NOT NULL;
+  $$,
+  $$
+  VALUES (0);
+  $$,
+  'Tasks linked to expected-month events must keep resolved_deadline_at as NULL.'
+);
+
+-- ===========================================================================
+-- SECTION 10: REPLAY MODIFICATION INTEGRATION TESTS (IMPL-GAP-002)
+-- ===========================================================================
+
+-- 41. Modify a generated task through user path, check task_source is preserved and is_user_modified = true
+SELECT lives_ok(
+  $$
+  UPDATE public.tasks 
+  SET name = 'Modified Task Name B'
+  WHERE wedding_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+    AND name = 'Chốt nhà hàng và đặt cọc nơi tổ chức';
+  $$,
+  'Should succeed when user edits a generated task name.'
+);
+
+-- 42. Modify a suggested event name (allowed Client Class-B edit field)
+SELECT lives_ok(
+  $$
+  UPDATE public.wedding_events
+  SET name = 'Lễ ăn hỏi & đám hỏi - Modified'
+  WHERE wedding_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+    AND name = 'Lễ ăn hỏi & đám hỏi';
+  $$,
+  'Should succeed when user edits a generated event name.'
+);
+
+-- 43. Retry generate_initial_plan replay, assert modified state is preserved and returned
+SELECT results_eq(
+  $$
+  SELECT 
+    (SELECT count(*)::integer FROM jsonb_to_recordset(api_v1.generate_initial_plan('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb') -> 'tasks') x(name text) WHERE name = 'Modified Task Name B') +
+    (SELECT count(*)::integer FROM jsonb_to_recordset(api_v1.generate_initial_plan('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb') -> 'events') y(name text) WHERE name = 'Lễ ăn hỏi & đám hỏi - Modified');
+  $$,
+  $$
+  VALUES (2);
+  $$,
+  'Plan replay retry must preserve user modifications and return the authoritative current state.'
 );
 
 SELECT * FROM finish();

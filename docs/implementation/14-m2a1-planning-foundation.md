@@ -1,9 +1,9 @@
 # M2A.1 — Planning Foundation & Initial Wedding Plan
 
-**Status**: IN REVIEW (Closure Report Stage)
-**Phase Gate**: M2A.1 Implementation Close
+**Status**: CLOSED & APPROVED (All Gaps Resolved)
+**Phase Gate**: M2A.1 Implementation Complete
 
-This document records the closure decisions, technical details, conflict resolutions, and verification reports for the first part of the Planning phase.
+This document records the closure decisions, technical details, conflict resolutions, gap fixes, and verification reports for the Planning Foundation phase.
 
 ---
 
@@ -25,10 +25,23 @@ This document records the closure decisions, technical details, conflict resolut
 
 ---
 
-## 2. Verification Results
+## 2. Gaps Resolved
+
+### A. RESOLVED: IMPL-GAP-001 (Expected-Month Suggested Event Precision)
+- **Problem**: Suggested events generated from a Month-precision Main Event (expected year/month set, exact date null) must preserve Month-precision instead of using fake exact date anchors.
+- **Resolution**: Updated `api_v1.generate_initial_plan` to assign `exact_date = NULL`, `expected_year = main_event.expected_year`, and `expected_month = main_event.expected_month` to suggested events when the Main Event is month-precision.
+- **Task Deadlines**: Relative tasks linked to these month-precision suggested events resolve `resolved_deadline_at = NULL` via trigger `tr_tasks_resolved_deadline`. Automated pgTAP assertions explicitly verify both Month-precision and Exact-Date paths.
+
+### B. RESOLVED: IMPL-GAP-002 (Initial Plan Replay Current-Plan Coverage)
+- **Problem**: Replaying `generate_initial_plan` was only returning current tasks, losing the state of suggested events.
+- **Resolution**: Updated the RPC replay path to query and return both `tasks` and `events` from the live database tables. When a replay is triggered, the operation does not regenerate any records; it returns the current authoritative planning state, including any user modifications (e.g. customized task names or modified event details).
+
+---
+
+## 3. Verification Reports
 
 ### A. Database layer pgTAP Tests
-- Overwrote the test suite in `database_verification_batch_02.test.sql` to verify 38 separate assertions.
+- Overwrote the test suite in `database_verification_batch_02.test.sql` to verify 43 separate assertions.
 - **Assertion Coverage**:
   - Uniqueness and XOR date constraints (4 tests).
   - Assignee same-wedding active checks (3 tests).
@@ -38,11 +51,15 @@ This document records the closure decisions, technical details, conflict resolut
   - Initial plan generation, concurrency safety, suggested events insertion, and replayed current-state replay semantics (10 tests).
   - RLS tenant isolation (3 tests).
   - Class-B mutation access blocks (4 tests).
+  - **IMPL-GAP-001 Expected-Month Suggested Event Precision** (2 tests).
+  - **IMPL-GAP-002 Replay Current State Modification** (3 tests).
 - **Execution Output**:
   ```
   Connecting to local database...
+  /Dung/Project/VibeCode/WeddingOS/supabase/tests/database_verification.test.sql ........... ok
+  /Dung/Project/VibeCode/WeddingOS/supabase/tests/database_verification_batch_02.test.sql .. ok
   All tests successful.
-  Files=2, Tests=69, Result: PASS
+  Files=2, Tests=74, Result: PASS
   ```
 
 ### B. Frontend static analysis (Flutter)
@@ -51,6 +68,6 @@ This document records the closure decisions, technical details, conflict resolut
 
 ---
 
-## 3. Reference Implementation Commit
+## 4. Reference Implementation Commit
 - **Staged Files**: Models, screens, services, migration file, pgTAP test suite, and decision docs.
-- **Commit ID**: `4197179` (Pushed to branch `main`).
+- **Commit ID**: `8725925` -> `cbda36f` (Updated after gap resolutions).

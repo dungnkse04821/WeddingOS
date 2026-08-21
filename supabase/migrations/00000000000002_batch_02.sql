@@ -239,6 +239,7 @@ DECLARE
   v_main_event_expected_year integer;
   v_main_event_expected_month integer;
   v_tasks_json               jsonb;
+  v_events_json              jsonb;
   
   -- Version-controlled configuration loaded statically
   v_templates_json jsonb := '{
@@ -312,16 +313,25 @@ BEGIN
   IF v_initial_plan_generated IS NOT NULL THEN
     SELECT json_agg(t) INTO v_tasks_json
     FROM (
-      SELECT id, name, status, deadline_intent, date_offset, resolved_deadline_at, task_source, side, assignee_wedding_member_id
+      SELECT id, name, status, deadline_intent, date_offset, resolved_deadline_at, task_source, side, assignee_wedding_member_id, wedding_event_id
       FROM public.tasks
       WHERE wedding_id = p_wedding_id
       ORDER BY created_at ASC
     ) t;
 
+    SELECT json_agg(e) INTO v_events_json
+    FROM (
+      SELECT id, name, expected_year, expected_month, exact_date, start_time, location, map_link, is_main_event, lifecycle_status
+      FROM public.wedding_events
+      WHERE wedding_id = p_wedding_id
+      ORDER BY created_at ASC
+    ) e;
+
     RETURN jsonb_build_object(
       'initial_plan_generated_at', v_initial_plan_generated,
       'replayed', true,
-      'tasks', COALESCE(v_tasks_json, '[]'::jsonb)
+      'tasks', COALESCE(v_tasks_json, '[]'::jsonb),
+      'events', COALESCE(v_events_json, '[]'::jsonb)
     );
   END IF;
 
@@ -435,16 +445,25 @@ BEGIN
   -- 9. Query and return generated task details
   SELECT json_agg(t) INTO v_tasks_json
   FROM (
-    SELECT id, name, status, deadline_intent, date_offset, resolved_deadline_at, task_source, side, assignee_wedding_member_id
+    SELECT id, name, status, deadline_intent, date_offset, resolved_deadline_at, task_source, side, assignee_wedding_member_id, wedding_event_id
     FROM public.tasks
     WHERE wedding_id = p_wedding_id
     ORDER BY created_at ASC
   ) t;
 
+  SELECT json_agg(e) INTO v_events_json
+  FROM (
+    SELECT id, name, expected_year, expected_month, exact_date, start_time, location, map_link, is_main_event, lifecycle_status
+    FROM public.wedding_events
+    WHERE wedding_id = p_wedding_id
+    ORDER BY created_at ASC
+  ) e;
+
   RETURN jsonb_build_object(
     'initial_plan_generated_at', now(),
     'replayed', false,
-    'tasks', COALESCE(v_tasks_json, '[]'::jsonb)
+    'tasks', COALESCE(v_tasks_json, '[]'::jsonb),
+    'events', COALESCE(v_events_json, '[]'::jsonb)
   );
 
 END;
