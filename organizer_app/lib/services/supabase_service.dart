@@ -4,6 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../foundation/constants.dart';
 import '../models/task_model.dart';
+import '../models/primary_group_model.dart';
+import '../models/invitation_party_model.dart';
+import '../models/guest_model.dart';
 
 class SupabaseService {
   static final SupabaseService instance = SupabaseService._internal();
@@ -270,13 +273,14 @@ class SupabaseService {
   }
 
   /// Commit event date change (TOP-EVT-002)
+  /// IMPL-CONFLICT-004: p_batch_action_c removed. USER_ABSOLUTE tasks are
+  /// calendar-fixed and are never adjusted by event date transitions.
   Future<Map<String, dynamic>> commitEventDateChange({
     required String eventId,
     DateTime? targetExactDate,
     int? targetExpectedYear,
     int? targetExpectedMonth,
     required String impactFingerprint,
-    String batchActionC = 'KEEP',
   }) async {
     final response = await client.rpc(
       'commit_event_date_change',
@@ -286,7 +290,6 @@ class SupabaseService {
         'p_target_expected_year': targetExpectedYear,
         'p_target_expected_month': targetExpectedMonth,
         'p_impact_fingerprint': impactFingerprint,
-        'p_batch_action_c': batchActionC,
       },
     );
     return Map<String, dynamic>.from(response as Map);
@@ -306,23 +309,273 @@ class SupabaseService {
   }
 
   /// Commit event removal (TOP-EVT-003)
+  /// IMPL-CONFLICT-005: p_explicit_choices removed. Task classification
+  /// (deletion vs preservation) is server-authoritative and not overridable
+  /// by the client. The server deletes all untouched active SYSTEM_TEMPLATE/
+  /// RECOMMENDATION tasks and preserves all user-created/modified/completed tasks.
   Future<Map<String, dynamic>> commitEventRemoval({
     required String eventId,
     required String impactFingerprint,
-    List<String> deleteTasks = const [],
-    List<String> preserveTasks = const [],
   }) async {
     final response = await client.rpc(
       'commit_event_removal',
       params: {
         'p_event_id': eventId,
         'p_impact_fingerprint': impactFingerprint,
-        'p_explicit_choices': {
-          'delete_tasks': deleteTasks,
-          'preserve_tasks': preserveTasks,
-        },
       },
     );
     return Map<String, dynamic>.from(response as Map);
+  }
+
+  // ===========================================================================
+  // M2B.1 GUEST FOUNDATION SERVICES
+  // ===========================================================================
+
+  /// Fetch all relationship groups for a wedding
+  Future<List<PrimaryGroupModel>> fetchPrimaryGroups(String weddingId) async {
+    try {
+      final data = await client
+          .from('primary_groups')
+          .select('*')
+          .eq('wedding_id', weddingId)
+          .order('name', ascending: true);
+      return (data as List).map((json) => PrimaryGroupModel.fromJson(json as Map<String, dynamic>)).toList();
+    } catch (e) {
+      if (kDebugMode) print('Error fetching groups: $e');
+      rethrow;
+    }
+  }
+
+  /// Create a primary group
+  Future<void> createPrimaryGroup(String weddingId, String name) async {
+    await client.from('primary_groups').insert({
+      'wedding_id': weddingId,
+      'name': name,
+    });
+  }
+
+  /// Update a primary group name
+  Future<void> updatePrimaryGroup(String groupId, String name) async {
+    await client.from('primary_groups').update({
+      'name': name,
+    }).eq('id', groupId);
+  }
+
+  /// Fetch all invitation parties for a wedding
+  Future<List<InvitationPartyModel>> fetchInvitationParties(String weddingId) async {
+    try {
+      final data = await client
+          .from('invitation_parties')
+          .select('*')
+          .eq('wedding_id', weddingId)
+          .order('display_name', ascending: true);
+      return (data as List).map((json) => InvitationPartyModel.fromJson(json as Map<String, dynamic>)).toList();
+    } catch (e) {
+      if (kDebugMode) print('Error fetching parties: $e');
+      rethrow;
+    }
+  }
+
+  /// Create an invitation party
+  Future<void> createInvitationParty({
+    required String weddingId,
+    required String displayName,
+    required int invitedCount,
+  }) async {
+    await client.from('invitation_parties').insert({
+      'wedding_id': weddingId,
+      'display_name': displayName,
+      'invited_count': invitedCount,
+    });
+  }
+
+  /// Update an invitation party
+  Future<void> updateInvitationParty({
+    required String partyId,
+    required String displayName,
+    required int invitedCount,
+  }) async {
+    await client.from('invitation_parties').update({
+      'display_name': displayName,
+      'invited_count': invitedCount,
+    }).eq('id', partyId);
+  }
+
+  /// Fetch all guests for a wedding
+  Future<List<GuestModel>> fetchGuests(String weddingId) async {
+    try {
+      final data = await client
+          .from('guests')
+          .select('*')
+          .eq('wedding_id', weddingId)
+          .order('name', ascending: true);
+      return (data as List).map((json) => GuestModel.fromJson(json as Map<String, dynamic>)).toList();
+    } catch (e) {
+      if (kDebugMode) print('Error fetching guests: $e');
+      rethrow;
+    }
+  }
+
+  /// Create a guest record
+  Future<void> createGuest(GuestModel guest) async {
+    await client.from('guests').insert(guest.toJson());
+  }
+
+  /// Update a guest record
+  Future<void> updateGuest(GuestModel guest) async {
+    await client.from('guests').update(guest.toJson()).eq('id', guest.id);
+  }
+
+  /// Check duplicate warnings for a guest using a safe read query on the RLS-isolated table
+  Future<List<Map<String, dynamic>>> checkGuestDuplicates({
+    required String weddingId,
+    required String name,
+    String? phone,
+    String? email,
+  }) async {
+    // 1. Normalize parameters on client side
+    String? normPhone;
+    if (phone != null && phone.trim().isNotEmpty) {
+      normPhone = phone.replaceAll(RegExp(r'\D'), '');
+      if (normPhone.startsWith('84')) {
+        normPhone = '0' + normPhone.substring(2);
+      }
+    }
+
+    String? normEmail;
+    if (email != null && email.trim().isNotEmpty) {
+      normEmail = email.trim().toLowerCase();
+    }
+
+    final trimmedName = name.trim().toLowerCase();
+
+    // 2. Query all guests for this wedding (automatically scoped by RLS)
+    final data = await client
+        .from('guests')
+        .select('id, name, phone, email, normalized_phone, normalized_email')
+        .eq('wedding_id', weddingId);
+
+    final List<Map<String, dynamic>> results = [];
+    for (final row in (data as List)) {
+      final rowName = (row['name'] as String).trim().toLowerCase();
+      final rowNormPhone = row['normalized_phone'] as String?;
+      final rowNormEmail = row['normalized_email'] as String?;
+
+      bool isMatch = false;
+      String reason = 'UNKNOWN';
+
+      if (normPhone != null && rowNormPhone == normPhone) {
+        isMatch = true;
+        reason = 'TRUNG_SO_DIEN_THOAI';
+      } else if (normEmail != null && rowNormEmail == normEmail) {
+        isMatch = true;
+        reason = 'TRUNG_EMAIL';
+      } else if (trimmedName.isNotEmpty && rowName == trimmedName) {
+        isMatch = true;
+        reason = 'TRUNG_TEN';
+      }
+
+      if (isMatch) {
+        results.add({
+          'id': row['id'],
+          'name': row['name'],
+          'phone': row['phone'],
+          'email': row['email'],
+          'match_reason': reason,
+        });
+      }
+    }
+    return results;
+  }
+
+  /// Preview relationship group deletion (TOP-GUE-001)
+  Future<Map<String, dynamic>> previewPrimaryGroupDelete(String groupId) async {
+    final response = await client.rpc(
+      'preview_primary_group_delete',
+      params: {
+        'p_group_id': groupId,
+      },
+    );
+    return response as Map<String, dynamic>;
+  }
+
+  /// Commit relationship group deletion (TOP-GUE-001)
+  Future<Map<String, dynamic>> commitPrimaryGroupDelete(String groupId, String fingerprint) async {
+    final response = await client.rpc(
+      'commit_primary_group_delete',
+      params: {
+        'p_group_id': groupId,
+        'p_impact_fingerprint': fingerprint,
+      },
+    );
+    return response as Map<String, dynamic>;
+  }
+
+  /// Preview guest party move/remove (TOP-GUE-002)
+  Future<Map<String, dynamic>> previewGuestPartyMove(String guestId, String? targetPartyId) async {
+    final response = await client.rpc(
+      'preview_guest_party_move',
+      params: {
+        'p_guest_id': guestId,
+        'p_target_party_id': targetPartyId,
+      },
+    );
+    return response as Map<String, dynamic>;
+  }
+
+  /// Commit guest party move/remove (TOP-GUE-002)
+  Future<Map<String, dynamic>> commitGuestPartyMove(String guestId, String? targetPartyId, String fingerprint) async {
+    final response = await client.rpc(
+      'commit_guest_party_move',
+      params: {
+        'p_guest_id': guestId,
+        'p_target_party_id': targetPartyId,
+        'p_impact_fingerprint': fingerprint,
+      },
+    );
+    return response as Map<String, dynamic>;
+  }
+
+  /// Preview guest duplicate merge (TOP-GUE-003)
+  Future<Map<String, dynamic>> previewGuestMerge(String guestId1, String guestId2) async {
+    final response = await client.rpc(
+      'preview_guest_merge',
+      params: {
+        'p_guest_id_1': guestId1,
+        'p_guest_id_2': guestId2,
+      },
+    );
+    return response as Map<String, dynamic>;
+  }
+
+  /// Commit guest duplicate merge (TOP-GUE-003)
+  Future<Map<String, dynamic>> commitGuestMerge({
+    required String survivorId,
+    required String secondaryId,
+    required String resolvedName,
+    String? resolvedPhone,
+    String? resolvedEmail,
+    required String resolvedSide,
+    required String resolvedSource,
+    String? resolvedGroupId,
+    String? resolvedPartyId,
+    required String fingerprint,
+  }) async {
+    final response = await client.rpc(
+      'commit_guest_merge',
+      params: {
+        'p_survivor_guest_id': survivorId,
+        'p_secondary_guest_id': secondaryId,
+        'p_resolved_name': resolvedName,
+        'p_resolved_phone': resolvedPhone,
+        'p_resolved_email': resolvedEmail,
+        'p_resolved_side': resolvedSide,
+        'p_resolved_guest_source': resolvedSource,
+        'p_resolved_primary_group_id': resolvedGroupId,
+        'p_resolved_invitation_party_id': resolvedPartyId,
+        'p_impact_fingerprint': fingerprint,
+      },
+    );
+    return response as Map<String, dynamic>;
   }
 }

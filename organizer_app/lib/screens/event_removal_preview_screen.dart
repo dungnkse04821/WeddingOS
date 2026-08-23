@@ -16,11 +16,6 @@ class _EventRemovalPreviewScreenState extends State<EventRemovalPreviewScreen> {
   Map<String, dynamic>? _previewData;
   String? _errorMessage;
 
-  // Selected choices for Deletion Candidates
-  // By default, untouched system tasks are checked (i.e. to be deleted)
-  final Set<String> _tasksToDelete = {};
-  final Set<String> _tasksToPreserve = {};
-
   @override
   void initState() {
     super.initState();
@@ -37,15 +32,6 @@ class _EventRemovalPreviewScreenState extends State<EventRemovalPreviewScreen> {
       final data = await SupabaseService.instance.previewEventRemoval(
         eventId: widget.event['id'] as String,
       );
-
-      _tasksToDelete.clear();
-      _tasksToPreserve.clear();
-
-      // Initialize default choices: candidates to delete
-      final candidates = List<dynamic>.from(data['deletion_candidates'] ?? []);
-      for (final task in candidates) {
-        _tasksToDelete.add(task['id'] as String);
-      }
 
       setState(() {
         _previewData = data;
@@ -71,8 +57,6 @@ class _EventRemovalPreviewScreenState extends State<EventRemovalPreviewScreen> {
       final result = await SupabaseService.instance.commitEventRemoval(
         eventId: widget.event['id'] as String,
         impactFingerprint: fingerprint,
-        deleteTasks: _tasksToDelete.toList(),
-        preserveTasks: _tasksToPreserve.toList(),
       );
 
       if (mounted) {
@@ -199,7 +183,7 @@ class _EventRemovalPreviewScreenState extends State<EventRemovalPreviewScreen> {
 
   Widget _buildBlockingWarningBanner() {
     return Container(
-      margin: const EdgeInsets.bottom(16),
+      margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.redAccent.withOpacity(0.15),
@@ -222,7 +206,7 @@ class _EventRemovalPreviewScreenState extends State<EventRemovalPreviewScreen> {
                 SizedBox(height: 6),
                 Text(
                   'Lễ cưới bắt buộc phải có ít nhất một sự kiện chính (Main Event) hoạt động. Vui lòng chọn hoặc tạo một sự kiện chính khác trước khi hủy sự kiện này.',
-                  style: TextStyle(color: Colors.white80, fontSize: 13),
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
                 ),
               ],
             ),
@@ -288,7 +272,7 @@ class _EventRemovalPreviewScreenState extends State<EventRemovalPreviewScreen> {
                 children: [
                   const Icon(Icons.monetization_on, color: Colors.orangeAccent, size: 16),
                   const SizedBox(width: 8),
-                  Text('$budgets mục ngân sách sẽ được gỡ liên kết sự kiện.', style: const TextStyle(color: Colors.white80, fontSize: 13)),
+                  Text('$budgets mục ngân sách sẽ được gỡ liên kết sự kiện.', style: const TextStyle(color: Colors.white70, fontSize: 13)),
                 ],
               ),
             ),
@@ -299,7 +283,7 @@ class _EventRemovalPreviewScreenState extends State<EventRemovalPreviewScreen> {
                 children: [
                   const Icon(Icons.mail_outline_rounded, color: Colors.blueAccent, size: 16),
                   const SizedBox(width: 8),
-                  Text('$invitations lời mời/nhóm khách sẽ được cập nhật.', style: const TextStyle(color: Colors.white80, fontSize: 13)),
+                  Text('$invitations lời mời/nhóm khách có sự kiện này (vẫn được giữ lại, sự kiện sẽ không khả dụng sau khi xóa).', style: const TextStyle(color: Colors.white70, fontSize: 13)),
                 ],
               ),
             ),
@@ -308,6 +292,10 @@ class _EventRemovalPreviewScreenState extends State<EventRemovalPreviewScreen> {
     );
   }
 
+  /// Deletion candidates section — read-only, server-authoritative.
+  /// The server determines which tasks are candidates for deletion
+  /// (untouched active SYSTEM_TEMPLATE/RECOMMENDATION tasks). The client
+  /// cannot override this classification.
   Widget _buildDeletionCandidatesSection() {
     final candidates = List<dynamic>.from(_previewData!['deletion_candidates'] ?? []);
 
@@ -325,12 +313,12 @@ class _EventRemovalPreviewScreenState extends State<EventRemovalPreviewScreen> {
             children: [
               Icon(Icons.delete_sweep_rounded, color: Colors.redAccent, size: 20),
               SizedBox(width: 8),
-              Text('Công việc mẫu đề xuất xóa', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+              Text('Công việc mẫu sẽ xóa', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
             ],
           ),
           const SizedBox(height: 6),
           const Text(
-            'Đây là các đầu việc hệ thống mẫu chưa chỉnh sửa. Nên xóa chúng để dọn dẹp bảng kế hoạch. Bạn có thể bỏ chọn nếu muốn giữ lại:',
+            'Các đầu việc hệ thống mẫu chưa chỉnh sửa dưới đây sẽ được tự động xóa. Phân loại này do hệ thống quyết định.',
             style: TextStyle(color: Colors.white54, fontSize: 12),
           ),
           const Divider(color: Colors.white10, height: 20),
@@ -341,25 +329,20 @@ class _EventRemovalPreviewScreenState extends State<EventRemovalPreviewScreen> {
             )
           else
             ...candidates.map((task) {
-              final taskId = task['id'] as String;
-              final isChecked = _tasksToDelete.contains(taskId);
-
-              return CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(task['name'] as String, style: const TextStyle(color: Colors.white, fontSize: 14)),
-                value: isChecked,
-                activeColor: Colors.redAccent,
-                onChanged: (val) {
-                  setState(() {
-                    if (val == true) {
-                      _tasksToDelete.add(taskId);
-                      _tasksToPreserve.remove(taskId);
-                    } else {
-                      _tasksToDelete.remove(taskId);
-                      _tasksToPreserve.add(taskId);
-                    }
-                  });
-                },
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                child: Row(
+                  children: [
+                    const Icon(Icons.delete_outline, size: 16, color: Colors.redAccent),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        task['name'] as String,
+                        style: const TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
               );
             }),
         ],
@@ -423,7 +406,7 @@ class _EventRemovalPreviewScreenState extends State<EventRemovalPreviewScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(task['name'] as String, style: const TextStyle(color: Colors.white80, fontSize: 14)),
+                    Text(task['name'] as String, style: const TextStyle(color: Colors.white70, fontSize: 14)),
                     const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),

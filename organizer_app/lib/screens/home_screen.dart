@@ -4,6 +4,7 @@ import '../models/task_model.dart';
 import 'auth_screen.dart';
 import 'wedding_selection_screen.dart';
 import 'planning_screen.dart';
+import 'directory_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -232,6 +233,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
           // Planning progress card
           _buildPlanningProgressCard(context),
+          const SizedBox(height: 20),
+
+          // Guest Directory card
+          _buildGuestDirectoryCard(context),
           const SizedBox(height: 20),
 
           // Workspace overview card
@@ -488,6 +493,78 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGuestDirectoryCard(BuildContext context) {
+    if (_wedding == null) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF6B4EFF).withOpacity(0.08),
+            const Color(0xFF00C6FF).withOpacity(0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFF6B4EFF).withOpacity(0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.people_alt_rounded, color: Color(0xFF00C6FF), size: 22),
+              const SizedBox(width: 10),
+              Text(
+                'GUEST DIRECTORY',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.7),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Manage primary relationship groups, invitation parties, individual guest list, and track RSVP seat allocation.',
+            style: TextStyle(color: Colors.white38, fontSize: 12, height: 1.4),
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00C6FF).withOpacity(0.2),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(color: const Color(0xFF00C6FF).withOpacity(0.4)),
+              ),
+              minimumSize: const Size(double.infinity, 48),
+              elevation: 0,
+            ),
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => DirectoryScreen(weddingId: _wedding!['id'] as String)),
+              );
+              _loadWorkspaceData();
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.folder_shared_rounded, size: 16),
+                SizedBox(width: 8),
+                Text('Open Guest Directory', style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
         ],
       ),
     );

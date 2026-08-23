@@ -22,9 +22,6 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
   int? _targetExpectedYear;
   int? _targetExpectedMonth;
 
-  // Batch Action for Absolute Tasks (Nhóm C)
-  String _batchActionC = 'KEEP'; // KEEP or SHIFT
-
   @override
   void initState() {
     super.initState();
@@ -79,7 +76,6 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
         targetExpectedYear: !_isExactMode ? _targetExpectedYear : null,
         targetExpectedMonth: !_isExactMode ? _targetExpectedMonth : null,
         impactFingerprint: fingerprint,
-        batchActionC: _batchActionC,
       );
 
       if (mounted) {
@@ -329,7 +325,7 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
                   border: Border.all(color: Colors.white10),
                 ),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.between,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
                       _targetExactDate != null
@@ -399,15 +395,15 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
 
   Widget _buildPreviewDetails() {
     final recalculated = List<dynamic>.from(_previewData!['recalculated_tasks'] ?? []);
-    final review = List<dynamic>.from(_previewData!['review_tasks'] ?? []);
     final preserved = List<dynamic>.from(_previewData!['preserved_tasks'] ?? []);
     final unresolved = List<dynamic>.from(_previewData!['unresolved_tasks'] ?? []);
+    final absoluteCount = (_previewData!['absolute_tasks_unchanged_count'] ?? 0) as int;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Headers stats
-        _buildStatsBar(recalculated.length, review.length, preserved.length, unresolved.length),
+        _buildStatsBar(recalculated.length, absoluteCount, preserved.length, unresolved.length),
         const SizedBox(height: 16),
 
         // Unresolved tasks list (Precision Loss Warning)
@@ -422,9 +418,9 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
           const SizedBox(height: 16),
         ],
 
-        // Review list (Nhóm C - Absolute Tasks)
-        if (review.isNotEmpty) ...[
-          _buildReviewList(review),
+        // Informational: Absolute tasks remain unchanged (calendar-fixed)
+        if (absoluteCount > 0) ...[
+          _buildAbsoluteTasksInfo(absoluteCount),
           const SizedBox(height: 16),
         ],
 
@@ -437,7 +433,7 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
     );
   }
 
-  Widget _buildStatsBar(int recalc, int review, int preserved, int unresolved) {
+  Widget _buildStatsBar(int recalc, int absolute, int preserved, int unresolved) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -450,7 +446,7 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
         alignment: WrapAlignment.spaceEvenly,
         children: [
           _buildStatItem('$recalc', 'Thay đổi', Colors.pinkAccent),
-          _buildStatItem('$review', 'Cần duyệt', Colors.orangeAccent),
+          if (absolute > 0) _buildStatItem('$absolute', 'Cố định', Colors.blueAccent),
           _buildStatItem('$preserved', 'Giữ nguyên', Colors.green),
           if (unresolved > 0) _buildStatItem('$unresolved', 'Bị gỡ hạn', Colors.redAccent),
         ],
@@ -478,7 +474,7 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
       color: Colors.redAccent.withOpacity(0.05),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: Border.all(color: Colors.redAccent.withOpacity(0.2)),
+        side: BorderSide(color: Colors.redAccent.withOpacity(0.2)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14.0),
@@ -509,7 +505,7 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
                   Expanded(
                     child: Text(
                       '${task['name']} (Offset: ${task['date_offset']} ngày)',
-                      style: const TextStyle(color: Colors.white80, fontSize: 13),
+                      style: const TextStyle(color: Colors.white70, fontSize: 13),
                     ),
                   ),
                 ],
@@ -533,10 +529,10 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 6.0),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.between,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
-                child: Text(task['name'] as String, style: const TextStyle(color: Colors.white80, fontSize: 14)),
+                child: Text(task['name'] as String, style: const TextStyle(color: Colors.white70, fontSize: 14)),
               ),
               Row(
                 children: [
@@ -552,88 +548,39 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
     );
   }
 
-  Widget _buildReviewList(List<dynamic> list) {
-    // Only support SHIFT batch option if old exact date was present and target exact date is selected
-    final bool canShift = widget.event['exact_date'] != null && _isExactMode;
-
-    return _buildSectionContainer(
-      title: 'Công việc có hạn cố định (Nhóm C)',
-      icon: Icons.checklist_rtl_rounded,
-      iconColor: Colors.orangeAccent,
-      children: [
-        const Text(
-          'Đây là các đầu việc tự chọn có hạn chốt cố định của người dùng, không bị dời tự động. Bạn muốn xử lý thế nào?',
-          style: TextStyle(color: Colors.white54, fontSize: 12),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: RadioListTile<String>(
-                title: const Text('Giữ nguyên hạn', style: TextStyle(color: Colors.white, fontSize: 13)),
-                value: 'KEEP',
-                groupValue: _batchActionC,
-                activeColor: Colors.pinkAccent,
-                contentPadding: EdgeInsets.zero,
-                onChanged: (val) {
-                  setState(() {
-                    _batchActionC = val!;
-                  });
-                },
-              ),
-            ),
-            if (canShift)
-              Expanded(
-                child: RadioListTile<String>(
-                  title: const Text('Tự động tịnh tiến', style: TextStyle(color: Colors.white, fontSize: 13)),
-                  value: 'SHIFT',
-                  groupValue: _batchActionC,
-                  activeColor: Colors.pinkAccent,
-                  contentPadding: EdgeInsets.zero,
-                  onChanged: (val) {
-                    setState(() {
-                      _batchActionC = val!;
-                    });
-                  },
-                ),
-              ),
-          ],
-        ),
-        const Divider(color: Colors.white10),
-        ...list.map((task) {
-          final oldDate = task['resolved_deadline_at'] != null ? (task['resolved_deadline_at'] as String) : 'Không có';
-          String newDate = oldDate;
-          if (_batchActionC == 'SHIFT' && canShift && _targetExactDate != null) {
-            final oldEventDate = DateTime.parse(widget.event['exact_date'] as String);
-            final delta = _targetExactDate!.difference(oldEventDate).inDays;
-            if (task['resolved_deadline_at'] != null) {
-              final oldDeadline = DateTime.parse(task['resolved_deadline_at'] as String);
-              final calculated = oldDeadline.add(Duration(days: delta));
-              newDate = '${calculated.year}-${calculated.month.toString().padLeft(2, '0')}-${calculated.day.toString().padLeft(2, '0')}';
-            }
-          }
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.between,
+  /// Informational card: USER_ABSOLUTE tasks are calendar-fixed and will not
+  /// be shifted or adjusted regardless of the event date transition.
+  Widget _buildAbsoluteTasksInfo(int count) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.blueAccent.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blueAccent.withOpacity(0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.lock_outline, color: Colors.blueAccent, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: Text(task['name'] as String, style: const TextStyle(color: Colors.white80, fontSize: 14))),
-                if (_batchActionC == 'SHIFT' && canShift)
-                  Row(
-                    children: [
-                      Text(oldDate, style: const TextStyle(color: Colors.white38, fontSize: 12, decoration: TextDecoration.lineThrough)),
-                      const Icon(Icons.arrow_forward, size: 12, color: Colors.orangeAccent),
-                      Text(newDate, style: const TextStyle(color: Colors.orangeAccent, fontSize: 13, fontWeight: FontWeight.bold)),
-                    ],
-                  )
-                else
-                  Text(oldDate, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                Text(
+                  '$count công việc có hạn cố định',
+                  style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Các công việc này gắn hạn theo lịch thực (USER_ABSOLUTE) và sẽ không bị thay đổi dù sự kiện đổi ngày hay chuyển độ chính xác.',
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                ),
               ],
             ),
-          );
-        }),
-      ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -646,7 +593,7 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 4.0),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.between,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
                 child: Text(

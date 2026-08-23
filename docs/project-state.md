@@ -2,7 +2,7 @@
 
 ## Giai đoạn Hiện tại
 
-Implementation -> M2A.2: Event Date/Precision Change + Event Removal Impact Review — In Review
+Implementation -> M2B.1: Guest / PrimaryGroup / InvitationParty Foundation — **IN REVIEW** (139/139 tests pass, transition constraints verified, Flutter tests pass)
 
 ## Tình trạng Dự án
 
@@ -84,7 +84,8 @@ Tập trung vào các mảng cốt lõi:
 *   **Implementation Plan:** 🟢 **Đã Phê duyệt (Approved)** - Chi tiết tại [11-implementation-plan.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/planning/11-implementation-plan.md)
 *   **M0 Implementation Decision Gate:** 🟢 **Đã Phê duyệt (Approved)** - Chi tiết tại [12-m0-implementation-decision-gate.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/12-m0-implementation-decision-gate.md)
 *   **M2A.1 Planning Foundation:** 🟢 **Đã hoàn thành (Complete)** - Chi tiết tại [14-m2a1-planning-foundation.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/14-m2a1-planning-foundation.md)
-*   **M2A.2 Date Change & Removal Previews:** 🟡 **Đang chờ duyệt (In Review)** - Chi tiết tại [walkthrough.md](file:///C:/Users/nguye/.gemini/antigravity-ide/brain/8f4b0d81-dced-46da-b4c4-30404deca98a/walkthrough.md)
+*   **M2A.2 Date Change & Removal Previews:** 🟢 **Đã hoàn thành (Complete / Approved)** — IMPL-CONFLICT-006 resolved, 116 tests pass — Chi tiết tại [15-m2a2-event-impact-review.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/15-m2a2-event-impact-review.md)
+*   **M2B.1 Guest Core Foundation:** 🟡 **Đang đánh giá (In Review)** — 139 tests pass, transition constraints verified, Flutter tests pass — Chi tiết tại [16-m2b1-guest-foundation.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/16-m2b1-guest-foundation.md)
 
 ## Các câu hỏi mở cần Product Owner làm rõ về Kiến trúc
 
@@ -98,9 +99,9 @@ Tập trung vào các mảng cốt lõi:
 
 ## Giai đoạn Tiếp theo
 
-MVP Backlog & Kế hoạch Triển khai Thực thi (MVP Backlog & Implementation Planning).
+Implementation -> M2B.2: Guest Merge, Move & Removal Impact Reviews, and M3: Invitation & RSVP / Credentials.
 
 ## Hành động Khuyên dùng tiếp theo
 
-Bắt đầu xây dựng danh mục Backlog MVP và lập kế hoạch triển khai thực thi chi tiết.
+Bắt đầu triển khai phân tích và thiết kế tác động cho việc Di chuyển, Gộp, Xóa nhóm và nhập dữ liệu Excel Khách mời (TOP-GUE-001 -> TOP-GUE-003, Excel Import).
 
