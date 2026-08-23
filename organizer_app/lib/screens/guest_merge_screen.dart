@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/guest_model.dart';
 import '../models/primary_group_model.dart';
 import '../models/invitation_party_model.dart';
@@ -27,7 +28,8 @@ class GuestMergeScreen extends StatefulWidget {
 class _GuestMergeScreenState extends State<GuestMergeScreen> {
   GuestModel? _guest1;
   GuestModel? _guest2;
-  int _step = 1; // 1: Select, 2: Survivor, 3: Resolve Conflicts, 4: Review & Commit
+  int _step =
+      1; // 1: Select, 2: Survivor, 3: Resolve Conflicts, 4: Review & Commit
 
   bool _isLoadingPreview = false;
   bool _isCommitting = false;
@@ -49,6 +51,20 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
   String? _resolvedGroupId;
   String? _resolvedPartyId;
 
+  String _safeErrorMessage(Object error, String fallback) {
+    final text = error.toString();
+    if (text.contains('42501') || text.contains('Unauthorized')) {
+      return 'Bạn không có quyền thực hiện thao tác này hoặc đám cưới không còn ở trạng thái cho phép chỉnh sửa.';
+    }
+    if (text.contains('44000') || text.contains('not found')) {
+      return 'Một trong hai khách mời không còn tồn tại. Vui lòng tải lại danh sách mới nhất.';
+    }
+    if (text.contains('40009') || text.contains('CONFLICT')) {
+      return 'Không thể xác nhận lại thao tác gộp này một cách an toàn. Vui lòng tải lại dữ liệu và tạo xem trước mới.';
+    }
+    return fallback;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -69,7 +85,10 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
     });
 
     try {
-      final data = await SupabaseService.instance.previewGuestMerge(_guest1!.id, _guest2!.id);
+      final data = await SupabaseService.instance.previewGuestMerge(
+        _guest1!.id,
+        _guest2!.id,
+      );
       setState(() {
         _previewData = data;
         _impactFingerprint = data['impact_fingerprint'] as String;
@@ -87,7 +106,10 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Lỗi tải xem trước gộp khách: $e';
+        _errorMessage = _safeErrorMessage(
+          e,
+          'Không thể tải xem trước gộp khách. Vui lòng thử lại.',
+        );
         _isLoadingPreview = false;
       });
     }
@@ -121,7 +143,10 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
         _showStaleImpactDialog();
       } else {
         setState(() {
-          _errorMessage = 'Lỗi thực thi gộp khách: $e';
+          _errorMessage = _safeErrorMessage(
+            e,
+            'Không thể gộp khách vào lúc này. Vui lòng tải lại và thử lại.',
+          );
           _isCommitting = false;
         });
       }
@@ -134,7 +159,10 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1E293B),
-        title: const Text('Dữ liệu đã thay đổi', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Dữ liệu đã thay đổi',
+          style: TextStyle(color: Colors.white),
+        ),
         content: const Text(
           'Thông tin của một trong hai khách mời đã thay đổi kể từ khi tạo xem trước. Vui lòng tải lại xem trước mới.',
           style: TextStyle(color: Colors.white70),
@@ -145,7 +173,10 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
               Navigator.of(ctx).pop();
               _fetchPreview();
             },
-            child: const Text('Tải lại Preview', style: TextStyle(color: Color(0xFF00C6FF))),
+            child: const Text(
+              'Tải lại Preview',
+              style: TextStyle(color: Color(0xFF00C6FF)),
+            ),
           ),
         ],
       ),
@@ -158,11 +189,16 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E293B),
-        title: Text('Gộp khách mời trùng lặp (Bước $_step/4)', style: const TextStyle(color: Colors.white)),
+        title: Text(
+          'Gộp khách mời trùng lặp (Bước $_step/4)',
+          style: const TextStyle(color: Colors.white),
+        ),
         elevation: 0,
       ),
       body: _isCommitting || _isLoadingPreview
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF00C6FF)))
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF00C6FF)),
+            )
           : Column(
               children: [
                 if (_errorMessage != null)
@@ -170,7 +206,13 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     color: Colors.redAccent.withOpacity(0.15),
-                    child: Text(_errorMessage!, style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
+                    child: Text(
+                      _errorMessage!,
+                      style: const TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
                 Expanded(
                   child: SingleChildScrollView(
@@ -205,30 +247,49 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
       children: [
         const Text(
           'CHỌN HAI KHÁCH MỜI CẦN GỘP',
-          style: TextStyle(color: Color(0xFF00C6FF), fontWeight: FontWeight.bold, fontSize: 15),
+          style: TextStyle(
+            color: Color(0xFF00C6FF),
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+          ),
         ),
         const SizedBox(height: 16),
-        _buildGuestSelector('Khách mời thứ nhất:', _guest1, (val) => setState(() => _guest1 = val)),
+        _buildGuestSelector(
+          'Khách mời thứ nhất:',
+          _guest1,
+          (val) => setState(() => _guest1 = val),
+        ),
         const SizedBox(height: 24),
-        _buildGuestSelector('Khách mời thứ hai:', _guest2, (val) => setState(() => _guest2 = val)),
+        _buildGuestSelector(
+          'Khách mời thứ hai:',
+          _guest2,
+          (val) => setState(() => _guest2 = val),
+        ),
       ],
     );
   }
 
-  Widget _buildGuestSelector(String label, GuestModel? selected, ValueChanged<GuestModel?> onChanged) {
+  Widget _buildGuestSelector(
+    String label,
+    GuestModel? selected,
+    ValueChanged<GuestModel?> onChanged,
+  ) {
     // Filter out already selected guest
     final list = widget.guests.where((g) {
       if (selected == null) {
         return _guest1?.id != g.id && _guest2?.id != g.id;
       }
       return (_guest1?.id != g.id || _guest1?.id == selected.id) &&
-             (_guest2?.id != g.id || _guest2?.id == selected.id);
+          (_guest2?.id != g.id || _guest2?.id == selected.id);
     }).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Colors.white54, fontSize: 13)),
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white54, fontSize: 13),
+        ),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -240,11 +301,21 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
             child: DropdownButton<GuestModel?>(
               value: selected,
               dropdownColor: const Color(0xFF1E293B),
-              hint: const Text('Chọn khách mời', style: TextStyle(color: Colors.white30, fontSize: 14)),
+              hint: const Text(
+                'Chọn khách mời',
+                style: TextStyle(color: Colors.white30, fontSize: 14),
+              ),
               style: const TextStyle(color: Colors.white, fontSize: 14),
               isExpanded: true,
               onChanged: onChanged,
-              items: list.map((g) => DropdownMenuItem(value: g, child: Text('${g.name} (${g.phone ?? "Không có SĐT"})'))).toList(),
+              items: list
+                  .map(
+                    (g) => DropdownMenuItem(
+                      value: g,
+                      child: Text('${g.name} (${g.phone ?? "Không có SĐT"})'),
+                    ),
+                  )
+                  .toList(),
             ),
           ),
         ),
@@ -258,7 +329,11 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
       children: [
         const Text(
           'CHỌN KHÁCH MỜI SỐNG SÓT (SURVIVOR)',
-          style: TextStyle(color: Color(0xFF00C6FF), fontWeight: FontWeight.bold, fontSize: 15),
+          style: TextStyle(
+            color: Color(0xFF00C6FF),
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+          ),
         ),
         const SizedBox(height: 8),
         const Text(
@@ -286,10 +361,14 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF00C6FF).withOpacity(0.05) : Colors.white.withOpacity(0.02),
+          color: isSelected
+              ? const Color(0xFF00C6FF).withOpacity(0.05)
+              : Colors.white.withOpacity(0.02),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? const Color(0xFF00C6FF).withOpacity(0.4) : Colors.white.withOpacity(0.05),
+            color: isSelected
+                ? const Color(0xFF00C6FF).withOpacity(0.4)
+                : Colors.white.withOpacity(0.05),
             width: 1.5,
           ),
         ),
@@ -311,7 +390,14 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(candidate.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(
+                    candidate.name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     'SĐT: ${candidate.phone ?? "Trống"} | Email: ${candidate.email ?? "Trống"}',
@@ -340,7 +426,11 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
       children: [
         const Text(
           'GIẢI QUYẾT XUNG ĐỘT DỮ LIỆU',
-          style: TextStyle(color: Color(0xFF00C6FF), fontWeight: FontWeight.bold, fontSize: 15),
+          style: TextStyle(
+            color: Color(0xFF00C6FF),
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+          ),
         ),
         const SizedBox(height: 8),
         const Text(
@@ -348,11 +438,41 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
           style: TextStyle(color: Colors.white54, fontSize: 13),
         ),
         const SizedBox(height: 20),
-        _buildConflictResolver('Họ và tên:', 'name', conflicts['name'], _resolvedName, (val) => setState(() => _resolvedName = val)),
-        _buildConflictResolver('Số điện thoại:', 'phone', conflicts['phone'], _resolvedPhone, (val) => setState(() => _resolvedPhone = val)),
-        _buildConflictResolver('Email:', 'email', conflicts['email'], _resolvedEmail, (val) => setState(() => _resolvedEmail = val)),
-        _buildConflictResolver('Phía khách mời:', 'side', conflicts['side'], _resolvedSide, (val) => setState(() => _resolvedSide = val)),
-        _buildConflictResolver('Nguồn khách mời:', 'guest_source', conflicts['guest_source'], _resolvedSource, (val) => setState(() => _resolvedSource = val)),
+        _buildConflictResolver(
+          'Họ và tên:',
+          'name',
+          conflicts['name'],
+          _resolvedName,
+          (val) => setState(() => _resolvedName = val),
+        ),
+        _buildConflictResolver(
+          'Số điện thoại:',
+          'phone',
+          conflicts['phone'],
+          _resolvedPhone,
+          (val) => setState(() => _resolvedPhone = val),
+        ),
+        _buildConflictResolver(
+          'Email:',
+          'email',
+          conflicts['email'],
+          _resolvedEmail,
+          (val) => setState(() => _resolvedEmail = val),
+        ),
+        _buildConflictResolver(
+          'Phía khách mời:',
+          'side',
+          conflicts['side'],
+          _resolvedSide,
+          (val) => setState(() => _resolvedSide = val),
+        ),
+        _buildConflictResolver(
+          'Nguồn khách mời:',
+          'guest_source',
+          conflicts['guest_source'],
+          _resolvedSource,
+          (val) => setState(() => _resolvedSource = val),
+        ),
         _buildGroupIdConflictResolver(conflicts['primary_group_id']),
         _buildPartyIdConflictResolver(conflicts['invitation_party_id']),
       ],
@@ -377,22 +497,44 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
     return Card(
       color: Colors.white.withOpacity(0.01),
       margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.white.withOpacity(0.04))),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.white.withOpacity(0.04)),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+            Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
             const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
-                  child: _buildResolutionRadio(val1 ?? 'Trống/Null', val1, currentSelected, onChanged, _guest1!.name),
+                  child: _buildResolutionRadio(
+                    val1 ?? 'Trống/Null',
+                    val1,
+                    currentSelected,
+                    onChanged,
+                    _guest1!.name,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _buildResolutionRadio(val2 ?? 'Trống/Null', val2, currentSelected, onChanged, _guest2!.name),
+                  child: _buildResolutionRadio(
+                    val2 ?? 'Trống/Null',
+                    val2,
+                    currentSelected,
+                    onChanged,
+                    _guest2!.name,
+                  ),
                 ),
               ],
             ),
@@ -406,28 +548,66 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
     final bool hasConflict = conflictMeta['has_conflict'] as bool;
     if (!hasConflict) return Container();
 
-    final g1 = widget.groups.firstWhere((g) => g.id == _guest1!.primaryGroupId, orElse: () => PrimaryGroupModel(id: '', weddingId: '', name: 'Trống/Null', createdAt: DateTime.now()));
-    final g2 = widget.groups.firstWhere((g) => g.id == _guest2!.primaryGroupId, orElse: () => PrimaryGroupModel(id: '', weddingId: '', name: 'Trống/Null', createdAt: DateTime.now()));
+    final g1 = widget.groups.firstWhere(
+      (g) => g.id == _guest1!.primaryGroupId,
+      orElse: () => PrimaryGroupModel(
+        id: '',
+        weddingId: '',
+        name: 'Trống/Null',
+        createdAt: DateTime.now(),
+      ),
+    );
+    final g2 = widget.groups.firstWhere(
+      (g) => g.id == _guest2!.primaryGroupId,
+      orElse: () => PrimaryGroupModel(
+        id: '',
+        weddingId: '',
+        name: 'Trống/Null',
+        createdAt: DateTime.now(),
+      ),
+    );
 
     return Card(
       color: Colors.white.withOpacity(0.01),
       margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.white.withOpacity(0.04))),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.white.withOpacity(0.04)),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Nhóm quan hệ:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+            const Text(
+              'Nhóm quan hệ:',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
             const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
-                  child: _buildResolutionRadio(g1.name, _guest1!.primaryGroupId, _resolvedGroupId, (val) => setState(() => _resolvedGroupId = val), _guest1!.name),
+                  child: _buildResolutionRadio(
+                    g1.name,
+                    _guest1!.primaryGroupId,
+                    _resolvedGroupId,
+                    (val) => setState(() => _resolvedGroupId = val),
+                    _guest1!.name,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _buildResolutionRadio(g2.name, _guest2!.primaryGroupId, _resolvedGroupId, (val) => setState(() => _resolvedGroupId = val), _guest2!.name),
+                  child: _buildResolutionRadio(
+                    g2.name,
+                    _guest2!.primaryGroupId,
+                    _resolvedGroupId,
+                    (val) => setState(() => _resolvedGroupId = val),
+                    _guest2!.name,
+                  ),
                 ),
               ],
             ),
@@ -441,28 +621,70 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
     final bool hasConflict = conflictMeta['has_conflict'] as bool;
     if (!hasConflict) return Container();
 
-    final p1 = widget.parties.firstWhere((p) => p.id == _guest1!.invitationPartyId, orElse: () => InvitationPartyModel(id: '', weddingId: '', displayName: 'Khách lẻ (Unassigned)', invitedCount: 0, createdAt: DateTime.now(), updatedAt: DateTime.now()));
-    final p2 = widget.parties.firstWhere((p) => p.id == _guest2!.invitationPartyId, orElse: () => InvitationPartyModel(id: '', weddingId: '', displayName: 'Khách lẻ (Unassigned)', invitedCount: 0, createdAt: DateTime.now(), updatedAt: DateTime.now()));
+    final p1 = widget.parties.firstWhere(
+      (p) => p.id == _guest1!.invitationPartyId,
+      orElse: () => InvitationPartyModel(
+        id: '',
+        weddingId: '',
+        displayName: 'Khách lẻ (Unassigned)',
+        invitedCount: 0,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    );
+    final p2 = widget.parties.firstWhere(
+      (p) => p.id == _guest2!.invitationPartyId,
+      orElse: () => InvitationPartyModel(
+        id: '',
+        weddingId: '',
+        displayName: 'Khách lẻ (Unassigned)',
+        invitedCount: 0,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    );
 
     return Card(
       color: Colors.white.withOpacity(0.01),
       margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.white.withOpacity(0.04))),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.white.withOpacity(0.04)),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Nhóm mời / Hộ:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+            const Text(
+              'Nhóm mời / Hộ:',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
             const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
-                  child: _buildResolutionRadio(p1.displayName, _guest1!.invitationPartyId, _resolvedPartyId, (val) => setState(() => _resolvedPartyId = val), _guest1!.name),
+                  child: _buildResolutionRadio(
+                    p1.displayName,
+                    _guest1!.invitationPartyId,
+                    _resolvedPartyId,
+                    (val) => setState(() => _resolvedPartyId = val),
+                    _guest1!.name,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _buildResolutionRadio(p2.displayName, _guest2!.invitationPartyId, _resolvedPartyId, (val) => setState(() => _resolvedPartyId = val), _guest2!.name),
+                  child: _buildResolutionRadio(
+                    p2.displayName,
+                    _guest2!.invitationPartyId,
+                    _resolvedPartyId,
+                    (val) => setState(() => _resolvedPartyId = val),
+                    _guest2!.name,
+                  ),
                 ),
               ],
             ),
@@ -487,9 +709,15 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF00C6FF).withOpacity(0.05) : Colors.white.withOpacity(0.01),
+          color: isSelected
+              ? const Color(0xFF00C6FF).withOpacity(0.05)
+              : Colors.white.withOpacity(0.01),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: isSelected ? const Color(0xFF00C6FF).withOpacity(0.3) : Colors.white.withOpacity(0.04)),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF00C6FF).withOpacity(0.3)
+                : Colors.white.withOpacity(0.04),
+          ),
         ),
         child: Row(
           children: [
@@ -504,9 +732,19 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(displayText, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
+                  Text(
+                    displayText,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text('Từ: $ownerName', style: const TextStyle(color: Colors.white30, fontSize: 10)),
+                  Text(
+                    'Từ: $ownerName',
+                    style: const TextStyle(color: Colors.white30, fontSize: 10),
+                  ),
                 ],
               ),
             ),
@@ -519,17 +757,43 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
   Widget _buildStep4ReviewCommit() {
     final groupName = _resolvedGroupId == null
         ? 'Chưa gán nhóm (NONE)'
-        : widget.groups.firstWhere((g) => g.id == _resolvedGroupId, orElse: () => PrimaryGroupModel(id: '', weddingId: '', name: 'Trống/Null', createdAt: DateTime.now())).name;
+        : widget.groups
+              .firstWhere(
+                (g) => g.id == _resolvedGroupId,
+                orElse: () => PrimaryGroupModel(
+                  id: '',
+                  weddingId: '',
+                  name: 'Trống/Null',
+                  createdAt: DateTime.now(),
+                ),
+              )
+              .name;
     final partyName = _resolvedPartyId == null
         ? 'Khách lẻ (Unassigned)'
-        : widget.parties.firstWhere((p) => p.id == _resolvedPartyId, orElse: () => InvitationPartyModel(id: '', weddingId: '', displayName: 'Trống/Null', invitedCount: 0, createdAt: DateTime.now(), updatedAt: DateTime.now())).displayName;
+        : widget.parties
+              .firstWhere(
+                (p) => p.id == _resolvedPartyId,
+                orElse: () => InvitationPartyModel(
+                  id: '',
+                  weddingId: '',
+                  displayName: 'Trống/Null',
+                  invitedCount: 0,
+                  createdAt: DateTime.now(),
+                  updatedAt: DateTime.now(),
+                ),
+              )
+              .displayName;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
           'TỔNG HỢP TÁC ĐỘNG GỘP KHÁCH MỜI',
-          style: TextStyle(color: Color(0xFF00C6FF), fontWeight: FontWeight.bold, fontSize: 16),
+          style: TextStyle(
+            color: Color(0xFF00C6FF),
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
         ),
         const SizedBox(height: 12),
         const Text(
@@ -548,7 +812,10 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildReviewRow('Họ và tên:', _resolvedName!),
-              _buildReviewRow('Số điện thoại:', _resolvedPhone ?? 'Trống (Null)'),
+              _buildReviewRow(
+                'Số điện thoại:',
+                _resolvedPhone ?? 'Trống (Null)',
+              ),
               _buildReviewRow('Email:', _resolvedEmail ?? 'Trống (Null)'),
               _buildReviewRow('Phía khách:', _resolvedSide!),
               _buildReviewRow('Nguồn khách:', _resolvedSource!),
@@ -560,12 +827,22 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
         const SizedBox(height: 24),
         const Text(
           'Quy tắc an toàn vật lý của Merger:',
-          style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.white70,
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         const SizedBox(height: 8),
-        const BulletPoint3(text: 'Khách phụ sẽ bị xóa cứng (hard-delete) khỏi cơ sở dữ liệu.'),
-        const BulletPoint3(text: 'Nhóm mời (Invitation Party) của cả hai khách vẫn sẽ được giữ lại, Invited Count không bao giờ tự ý thay đổi.'),
-        const BulletPoint3(text: 'RSVP và phản hồi sự kiện của các nhóm mời sẽ được bảo toàn nguyên vẹn, không chuyển đổi chủ sở hữu.'),
+        const BulletPoint3(
+          text: 'Khách phụ sẽ bị xóa cứng (hard-delete) khỏi cơ sở dữ liệu.',
+        ),
+        const BulletPoint3(
+          text: 'Nhóm mời (Invitation Party) của cả hai khách vẫn sẽ được giữ lại, Invited Count không bao giờ tự ý thay đổi.',
+        ),
+        const BulletPoint3(
+          text: 'RSVP và phản hồi sự kiện của các nhóm mời sẽ được bảo toàn nguyên vẹn, không chuyển đổi chủ sở hữu.',
+        ),
       ],
     );
   }
@@ -578,11 +855,21 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
         children: [
           Expanded(
             flex: 4,
-            child: Text(label, style: const TextStyle(color: Colors.white54, fontSize: 13)),
+            child: Text(
+              label,
+              style: const TextStyle(color: Colors.white54, fontSize: 13),
+            ),
           ),
           Expanded(
             flex: 6,
-            child: Text(value, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -607,14 +894,19 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Colors.white24),
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
                 onPressed: () {
                   setState(() {
                     _step--;
                   });
                 },
-                child: const Text('Quay lại', style: TextStyle(color: Colors.white70)),
+                child: const Text(
+                  'Quay lại',
+                  style: TextStyle(color: Colors.white70),
+                ),
               ),
             ),
             const SizedBox(width: 16),
@@ -624,7 +916,9 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF00C6FF),
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
               onPressed: () {
                 if (_step == 1) {
@@ -651,7 +945,10 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
               },
               child: Text(
                 isLastStep ? 'Xác nhận gộp' : 'Tiếp tục',
-                style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
@@ -672,8 +969,20 @@ class BulletPoint3 extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('• ', style: TextStyle(color: Color(0xFF00C6FF), fontSize: 14)),
-          Expanded(child: Text(text, style: const TextStyle(color: Colors.white60, fontSize: 13, height: 1.4))),
+          const Text(
+            '• ',
+            style: TextStyle(color: Color(0xFF00C6FF), fontSize: 14),
+          ),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Colors.white60,
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+          ),
         ],
       ),
     );

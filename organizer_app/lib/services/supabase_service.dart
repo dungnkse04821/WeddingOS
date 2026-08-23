@@ -2,11 +2,13 @@ import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../foundation/constants.dart';
 import '../models/task_model.dart';
 import '../models/primary_group_model.dart';
 import '../models/invitation_party_model.dart';
 import '../models/guest_model.dart';
+import '../models/guest_import_model.dart';
 
 class SupabaseService {
   static final SupabaseService instance = SupabaseService._internal();
@@ -76,13 +78,12 @@ class SupabaseService {
       await client.auth.signInWithPassword(email: email, password: password);
     } on AuthException catch (e) {
       // If mock user doesn't exist, sign up dynamically for offline testing
-      if (e.statusCode == '400' || e.message.contains('Invalid login credentials')) {
+      if (e.statusCode == '400' ||
+          e.message.contains('Invalid login credentials')) {
         await client.auth.signUp(
           email: email,
           password: password,
-          data: {
-            'full_name': email.split('@').first.toUpperCase(),
-          },
+          data: {'full_name': email.split('@').first.toUpperCase()},
         );
       } else {
         rethrow;
@@ -121,7 +122,7 @@ class SupabaseService {
     // Parse the JSONB response
     final data = response as Map<String, dynamic>;
     final wedding = data['wedding'] as Map<String, dynamic>;
-    
+
     // Save selection locally
     await saveSelectedWedding(
       wedding['id'] as String,
@@ -155,7 +156,9 @@ class SupabaseService {
     try {
       final data = await client
           .from('weddings')
-          .select('id, name, target_budget, exact_date, expected_year, expected_month, status, initial_plan_generated_at')
+          .select(
+            'id, name, target_budget, exact_date, expected_year, expected_month, status, initial_plan_generated_at',
+          )
           .order('created_at', ascending: false);
       return List<Map<String, dynamic>>.from(data);
     } catch (e) {
@@ -168,9 +171,7 @@ class SupabaseService {
   Future<Map<String, dynamic>> generateInitialPlan(String weddingId) async {
     final response = await client.rpc(
       'generate_initial_plan',
-      params: {
-        'p_wedding_id': weddingId,
-      },
+      params: {'p_wedding_id': weddingId},
     );
     return response as Map<String, dynamic>;
   }
@@ -183,8 +184,10 @@ class SupabaseService {
           .select('*')
           .eq('wedding_id', weddingId)
           .order('created_at', ascending: true);
-      
-      return (data as List).map((json) => TaskModel.fromJson(json as Map<String, dynamic>)).toList();
+
+      return (data as List)
+          .map((json) => TaskModel.fromJson(json as Map<String, dynamic>))
+          .toList();
     } catch (e) {
       if (kDebugMode) print('Error fetching tasks: $e');
       rethrow;
@@ -194,12 +197,7 @@ class SupabaseService {
   /// Directly updates a task's status under Class-B rules.
   /// Trigger logic handles timestamping/freeze/overrides.
   Future<void> updateTaskStatus(String taskId, String status) async {
-    await client
-        .from('tasks')
-        .update({
-          'status': status,
-        })
-        .eq('id', taskId);
+    await client.from('tasks').update({'status': status}).eq('id', taskId);
   }
 
   /// Directly creates a new USER task under Class-B rules.
@@ -217,14 +215,19 @@ class SupabaseService {
       'name': name,
       'deadline_intent': deadlineIntent,
       'date_offset': dateOffset,
-      'custom_override_date': customOverrideDate?.toIso8601String().split('T').first,
+      'custom_override_date': customOverrideDate
+          ?.toIso8601String()
+          .split('T')
+          .first,
       'wedding_event_id': weddingEventId,
       'side': side,
     });
   }
 
   /// Fetches all active events of a wedding.
-  Future<List<Map<String, dynamic>>> fetchWeddingEvents(String weddingId) async {
+  Future<List<Map<String, dynamic>>> fetchWeddingEvents(
+    String weddingId,
+  ) async {
     final data = await client
         .from('wedding_events')
         .select('*')
@@ -264,7 +267,10 @@ class SupabaseService {
       'preview_event_date_change',
       params: {
         'p_event_id': eventId,
-        'p_target_exact_date': targetExactDate?.toIso8601String().split('T').first,
+        'p_target_exact_date': targetExactDate
+            ?.toIso8601String()
+            .split('T')
+            .first,
         'p_target_expected_year': targetExpectedYear,
         'p_target_expected_month': targetExpectedMonth,
       },
@@ -286,7 +292,10 @@ class SupabaseService {
       'commit_event_date_change',
       params: {
         'p_event_id': eventId,
-        'p_target_exact_date': targetExactDate?.toIso8601String().split('T').first,
+        'p_target_exact_date': targetExactDate
+            ?.toIso8601String()
+            .split('T')
+            .first,
         'p_target_expected_year': targetExpectedYear,
         'p_target_expected_month': targetExpectedMonth,
         'p_impact_fingerprint': impactFingerprint,
@@ -301,9 +310,7 @@ class SupabaseService {
   }) async {
     final response = await client.rpc(
       'preview_event_removal',
-      params: {
-        'p_event_id': eventId,
-      },
+      params: {'p_event_id': eventId},
     );
     return Map<String, dynamic>.from(response as Map);
   }
@@ -339,7 +346,11 @@ class SupabaseService {
           .select('*')
           .eq('wedding_id', weddingId)
           .order('name', ascending: true);
-      return (data as List).map((json) => PrimaryGroupModel.fromJson(json as Map<String, dynamic>)).toList();
+      return (data as List)
+          .map(
+            (json) => PrimaryGroupModel.fromJson(json as Map<String, dynamic>),
+          )
+          .toList();
     } catch (e) {
       if (kDebugMode) print('Error fetching groups: $e');
       rethrow;
@@ -356,20 +367,28 @@ class SupabaseService {
 
   /// Update a primary group name
   Future<void> updatePrimaryGroup(String groupId, String name) async {
-    await client.from('primary_groups').update({
-      'name': name,
-    }).eq('id', groupId);
+    await client
+        .from('primary_groups')
+        .update({'name': name})
+        .eq('id', groupId);
   }
 
   /// Fetch all invitation parties for a wedding
-  Future<List<InvitationPartyModel>> fetchInvitationParties(String weddingId) async {
+  Future<List<InvitationPartyModel>> fetchInvitationParties(
+    String weddingId,
+  ) async {
     try {
       final data = await client
           .from('invitation_parties')
           .select('*')
           .eq('wedding_id', weddingId)
           .order('display_name', ascending: true);
-      return (data as List).map((json) => InvitationPartyModel.fromJson(json as Map<String, dynamic>)).toList();
+      return (data as List)
+          .map(
+            (json) =>
+                InvitationPartyModel.fromJson(json as Map<String, dynamic>),
+          )
+          .toList();
     } catch (e) {
       if (kDebugMode) print('Error fetching parties: $e');
       rethrow;
@@ -395,10 +414,10 @@ class SupabaseService {
     required String displayName,
     required int invitedCount,
   }) async {
-    await client.from('invitation_parties').update({
-      'display_name': displayName,
-      'invited_count': invitedCount,
-    }).eq('id', partyId);
+    await client
+        .from('invitation_parties')
+        .update({'display_name': displayName, 'invited_count': invitedCount})
+        .eq('id', partyId);
   }
 
   /// Fetch all guests for a wedding
@@ -409,7 +428,9 @@ class SupabaseService {
           .select('*')
           .eq('wedding_id', weddingId)
           .order('name', ascending: true);
-      return (data as List).map((json) => GuestModel.fromJson(json as Map<String, dynamic>)).toList();
+      return (data as List)
+          .map((json) => GuestModel.fromJson(json as Map<String, dynamic>))
+          .toList();
     } catch (e) {
       if (kDebugMode) print('Error fetching guests: $e');
       rethrow;
@@ -492,39 +513,41 @@ class SupabaseService {
   Future<Map<String, dynamic>> previewPrimaryGroupDelete(String groupId) async {
     final response = await client.rpc(
       'preview_primary_group_delete',
-      params: {
-        'p_group_id': groupId,
-      },
+      params: {'p_group_id': groupId},
     );
     return response as Map<String, dynamic>;
   }
 
   /// Commit relationship group deletion (TOP-GUE-001)
-  Future<Map<String, dynamic>> commitPrimaryGroupDelete(String groupId, String fingerprint) async {
+  Future<Map<String, dynamic>> commitPrimaryGroupDelete(
+    String groupId,
+    String fingerprint,
+  ) async {
     final response = await client.rpc(
       'commit_primary_group_delete',
-      params: {
-        'p_group_id': groupId,
-        'p_impact_fingerprint': fingerprint,
-      },
+      params: {'p_group_id': groupId, 'p_impact_fingerprint': fingerprint},
     );
     return response as Map<String, dynamic>;
   }
 
   /// Preview guest party move/remove (TOP-GUE-002)
-  Future<Map<String, dynamic>> previewGuestPartyMove(String guestId, String? targetPartyId) async {
+  Future<Map<String, dynamic>> previewGuestPartyMove(
+    String guestId,
+    String? targetPartyId,
+  ) async {
     final response = await client.rpc(
       'preview_guest_party_move',
-      params: {
-        'p_guest_id': guestId,
-        'p_target_party_id': targetPartyId,
-      },
+      params: {'p_guest_id': guestId, 'p_target_party_id': targetPartyId},
     );
     return response as Map<String, dynamic>;
   }
 
   /// Commit guest party move/remove (TOP-GUE-002)
-  Future<Map<String, dynamic>> commitGuestPartyMove(String guestId, String? targetPartyId, String fingerprint) async {
+  Future<Map<String, dynamic>> commitGuestPartyMove(
+    String guestId,
+    String? targetPartyId,
+    String fingerprint,
+  ) async {
     final response = await client.rpc(
       'commit_guest_party_move',
       params: {
@@ -537,13 +560,13 @@ class SupabaseService {
   }
 
   /// Preview guest duplicate merge (TOP-GUE-003)
-  Future<Map<String, dynamic>> previewGuestMerge(String guestId1, String guestId2) async {
+  Future<Map<String, dynamic>> previewGuestMerge(
+    String guestId1,
+    String guestId2,
+  ) async {
     final response = await client.rpc(
       'preview_guest_merge',
-      params: {
-        'p_guest_id_1': guestId1,
-        'p_guest_id_2': guestId2,
-      },
+      params: {'p_guest_id_1': guestId1, 'p_guest_id_2': guestId2},
     );
     return response as Map<String, dynamic>;
   }
@@ -577,5 +600,24 @@ class SupabaseService {
       },
     );
     return response as Map<String, dynamic>;
+  }
+
+  /// Confirm locally parsed Excel Guest Import rows (TOP-GUE-004).
+  Future<GuestImportConfirmResult> confirmGuestImport({
+    required String requestId,
+    required String weddingId,
+    required List<Map<String, dynamic>> rows,
+  }) async {
+    final response = await client.rpc(
+      'confirm_guest_import',
+      params: {
+        'p_request_id': requestId,
+        'p_wedding_id': weddingId,
+        'p_rows': rows,
+      },
+    );
+    return GuestImportConfirmResult.fromJson(
+      Map<String, dynamic>.from(response as Map),
+    );
   }
 }

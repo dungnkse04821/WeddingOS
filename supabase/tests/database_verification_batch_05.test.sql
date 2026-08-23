@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(22); -- 22 assertions for BATCH-05 (Guest Impact Operations)
+SELECT plan(27); -- 27 assertions for BATCH-05 (Guest Impact Operations)
 
 -- ===========================================================================
 -- TEST SETUP
@@ -27,6 +27,26 @@ VALUES
   ('88888888-8888-8888-8888-888888888888', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'OWNER', 'ACTIVE', 'USER A', 'organizer.a@example.com'),
   ('99999999-9999-9999-9999-999999999999', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-2222-2222-222222222222', 'OWNER', 'ACTIVE', 'USER B', 'organizer.b@example.com')
 ON CONFLICT (id) DO NOTHING;
+
+-- Trusted execution authority must not be available to ordinary client roles.
+SELECT is(
+  (SELECT rolcanlogin FROM pg_roles WHERE rolname = 'trusted_function_owner'),
+  false,
+  'Security role: trusted_function_owner must remain NOLOGIN.'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM pg_auth_members am
+    JOIN pg_roles parent_role ON parent_role.oid = am.roleid
+    JOIN pg_roles member_role ON member_role.oid = am.member
+    WHERE parent_role.rolname = 'trusted_function_owner'
+      AND member_role.rolname IN ('authenticated', 'anon')
+  ),
+  0,
+  'Security role: authenticated/anon must not inherit or SET ROLE trusted_function_owner.'
+);
 
 -- Setup session
 SET ROLE authenticated;
@@ -130,7 +150,33 @@ SELECT throws_ok(
   'Preview: Must reject cross-wedding party target.'
 );
 
--- 9. Commit Party Move succeeds
+-- 9. Adversarial GUC attempt cannot bypass Party -> NULL protection
+SELECT set_config('weddingos.trusted_operation', 'true', true);
+
+SELECT throws_ok(
+  $$
+  UPDATE public.guests
+  SET invitation_party_id = NULL
+  WHERE id = 'e1111111-1111-1111-1111-111111111111';
+  $$,
+  '42501',
+  'Direct unassignment or transition from an existing invitation party is blocked. Must use trusted operations.',
+  'Class B adversarial: Client-set weddingos.trusted_operation=true must not allow Party -> NULL.'
+);
+
+-- 10. Adversarial GUC attempt cannot bypass Party A -> Party B protection
+SELECT throws_ok(
+  $$
+  UPDATE public.guests
+  SET invitation_party_id = 'c2222222-2222-2222-2222-222222222222'
+  WHERE id = 'e1111111-1111-1111-1111-111111111111';
+  $$,
+  '42501',
+  'Direct unassignment or transition from an existing invitation party is blocked. Must use trusted operations.',
+  'Class B adversarial: Client-set weddingos.trusted_operation=true must not allow Party A -> Party B.'
+);
+
+-- 11. Commit Party Move succeeds
 SELECT lives_ok(
   $$
   SELECT api_v1.commit_guest_party_move(
@@ -142,38 +188,35 @@ SELECT lives_ok(
   'Commit: Moving guest party with valid fingerprint must succeed.'
 );
 
--- 10. Check guest is moved
+-- 12. Check guest is moved
 SELECT is(
   (SELECT invitation_party_id FROM public.guests WHERE id = 'e1111111-1111-1111-1111-111111111111'),
   'c2222222-2222-2222-2222-222222222222'::uuid,
   'After commit: Guest must be moved to target party.'
 );
 
--- 11. Check Invited Counts are unchanged (Independence check - Source)
+-- 13. Check Invited Counts are unchanged (Independence check - Source)
 SELECT is(
   (SELECT invited_count FROM public.invitation_parties WHERE id = 'c1111111-1111-1111-1111-111111111111'),
   4,
   'Invited Count of source party must remain 4.'
 );
 
--- 12. Check Invited Counts are unchanged (Independence check - Target)
+-- 14. Check Invited Counts are unchanged (Independence check - Target)
 SELECT is(
   (SELECT invited_count FROM public.invitation_parties WHERE id = 'c2222222-2222-2222-2222-222222222222'),
   2,
   'Invited Count of target party must remain 2.'
 );
 
--- 13. Retry Party Move returns replayed = true
+-- 15. Retry Party Move returns replayed = true
 SELECT is(
   (api_v1.commit_guest_party_move('e1111111-1111-1111-1111-111111111111', 'c2222222-2222-2222-2222-222222222222', 'any_fingerprint') ->> 'replayed')::boolean,
   true,
   'Retry: Commit with already matching state returns replayed success.'
 );
 
--- 14. Ordinary update still blocked (Class B trigger block remains active)
--- Reset transaction GUC trusted_operation first
-SELECT set_config('weddingos.trusted_operation', 'false', true);
-
+-- 16. Ordinary update still blocked (Class B trigger block remains active)
 SELECT throws_ok(
   $$
   UPDATE public.guests
@@ -189,14 +232,14 @@ SELECT throws_ok(
 -- 3. TOP-GUE-003: GUEST DUPLICATE MERGE
 -- ===========================================================================
 
--- 15. Preview Guest Merge
+-- 17. Preview Guest Merge
 SELECT is(
   (api_v1.preview_guest_merge('e1111111-1111-1111-1111-111111111111', 'e2222222-2222-2222-2222-222222222222') -> 'conflicts' -> 'side' ->> 'has_conflict')::boolean,
   true,
   'Preview: Conflict on Side must be detected because they are different.'
 );
 
--- 16. Commit Guest Merge fails on invalid candidate value
+-- 18. Commit Guest Merge fails on invalid candidate value
 SELECT throws_ok(
   $$
   SELECT api_v1.commit_guest_merge(
@@ -217,7 +260,7 @@ SELECT throws_ok(
   'Commit: Reject candidate if it does not belong to either guest.'
 );
 
--- 17. Commit Guest Merge succeeds with valid candidate choices
+-- 19. Commit Guest Merge succeeds with valid candidate choices
 SELECT lives_ok(
   $$
   SELECT api_v1.commit_guest_merge(
@@ -236,7 +279,7 @@ SELECT lives_ok(
   'Commit: Merge with valid resolutions and fingerprint must succeed.'
 );
 
--- 18. Verify survivor is updated and secondary is deleted
+-- 20. Verify survivor is updated and secondary is deleted
 SELECT results_eq(
   $$
   SELECT name, side, guest_source, invitation_party_id FROM public.guests WHERE id = 'e1111111-1111-1111-1111-111111111111';
@@ -247,16 +290,17 @@ SELECT results_eq(
   'After merge: Survivor must take on the resolved values.'
 );
 
--- 19. Verify secondary guest is physically deleted
+-- 21. Verify secondary guest is physically deleted
 SELECT is(
   (SELECT count(*)::integer FROM public.guests WHERE id = 'e2222222-2222-2222-2222-222222222222'),
   0,
   'After merge: Secondary guest must be physically deleted.'
 );
 
--- 20. Replay check: Calling commit again with same attributes returns replayed success
-SELECT is(
-  (api_v1.commit_guest_merge(
+-- 22. Retry check: absent secondary + matching survivor is ambiguous without durable proof
+SELECT throws_ok(
+  $$
+  SELECT api_v1.commit_guest_merge(
     'e1111111-1111-1111-1111-111111111111',
     'e2222222-2222-2222-2222-222222222222',
     'Khách Nhóm 1',
@@ -267,12 +311,35 @@ SELECT is(
     NULL,
     'c2222222-2222-2222-2222-222222222222',
     'any_fingerprint'
-  ) ->> 'replayed')::boolean,
-  true,
-  'Retry: Merge with already matching survivor state returns replayed success.'
+  );
+  $$,
+  '40009',
+  'CONFLICT: The secondary guest is absent and this merge retry cannot be proven from an approved durable source.',
+  'Retry: Merge must not return replayed=true from secondary absence plus matching survivor fields.'
 );
 
--- 21. Replay check: Calling commit again with different attributes returns conflict
+-- 23. Ambiguous state check: unrelated absent secondary also cannot be inferred as replay
+SELECT throws_ok(
+  $$
+  SELECT api_v1.commit_guest_merge(
+    'e1111111-1111-1111-1111-111111111111',
+    'e3333333-3333-3333-3333-333333333333',
+    'Khách Nhóm 1',
+    '0911111111',
+    'guest1@example.com',
+    'BRIDE_SIDE',
+    'GROOM',
+    NULL,
+    'c2222222-2222-2222-2222-222222222222',
+    'any_fingerprint'
+  );
+  $$,
+  '40009',
+  'CONFLICT: The secondary guest is absent and this merge retry cannot be proven from an approved durable source.',
+  'Ambiguous state: Matching survivor plus absent secondary must fail closed without durable proof.'
+);
+
+-- 24. Retry check: Calling commit again with different attributes returns conflict
 SELECT throws_ok(
   $$
   SELECT api_v1.commit_guest_merge(
@@ -289,11 +356,11 @@ SELECT throws_ok(
   );
   $$,
   '40009',
-  'CONFLICT: The survivor guest attributes do not match the expected resolved merge values.',
-  'Retry: Must throw CONFLICT if matching survivor state is ambiguous/different.'
+  'CONFLICT: The secondary guest is absent and this merge retry cannot be proven from an approved durable source.',
+  'Retry: Must throw CONFLICT when secondary absence makes the merge retry ambiguous.'
 );
 
--- 22. Direct guest DELETE is still denied for clients
+-- 25. Direct guest DELETE is still denied for clients
 SELECT throws_ok(
   $$
   DELETE FROM public.guests WHERE id = 'e1111111-1111-1111-1111-111111111111';

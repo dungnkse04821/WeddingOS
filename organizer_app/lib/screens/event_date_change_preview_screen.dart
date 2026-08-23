@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../services/supabase_service.dart';
 
 class EventDateChangePreviewScreen extends StatefulWidget {
@@ -7,10 +7,12 @@ class EventDateChangePreviewScreen extends StatefulWidget {
   const EventDateChangePreviewScreen({super.key, required this.event});
 
   @override
-  State<EventDateChangePreviewScreen> createState() => _EventDateChangePreviewScreenState();
+  State<EventDateChangePreviewScreen> createState() =>
+      _EventDateChangePreviewScreenState();
 }
 
-class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScreen> {
+class _EventDateChangePreviewScreenState
+    extends State<EventDateChangePreviewScreen> {
   bool _loading = false;
   bool _submitting = false;
   Map<String, dynamic>? _previewData;
@@ -110,12 +112,21 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
       builder: (BuildContext ctx) {
         return AlertDialog(
           backgroundColor: const Color(0xFF1E293B),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: const Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 28),
+              Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.orangeAccent,
+                size: 28,
+              ),
               SizedBox(width: 8),
-              Text('Dữ liệu đã thay đổi', style: TextStyle(color: Colors.white)),
+              Text(
+                'Dữ liệu đã thay đổi',
+                style: TextStyle(color: Colors.white),
+              ),
             ],
           ),
           content: const Text(
@@ -128,7 +139,10 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
                 Navigator.pop(ctx);
                 _loadPreview();
               },
-              child: const Text('Tải lại xem trước', style: TextStyle(color: Colors.blueAccent)),
+              child: const Text(
+                'Tải lại xem trước',
+                style: TextStyle(color: Colors.blueAccent),
+              ),
             ),
           ],
         );
@@ -170,7 +184,10 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text('Xem trước đổi ngày', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Xem trước đổi ngày',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: const Color(0xFF1E293B),
         elevation: 0,
       ),
@@ -194,10 +211,15 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Colors.redAccent.withOpacity(0.1),
-                    border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                    border: Border.all(
+                      color: Colors.redAccent.withOpacity(0.3),
+                    ),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(_errorMessage!, style: const TextStyle(color: Colors.redAccent)),
+                  child: Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: Colors.redAccent),
+                  ),
                 ),
                 const SizedBox(height: 16),
               ],
@@ -216,7 +238,10 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
                 const Center(
                   child: Padding(
                     padding: EdgeInsets.symmetric(vertical: 40.0),
-                    child: Text('Vui lòng chọn ngày để xem trước tác động', style: TextStyle(color: Colors.white38)),
+                    child: Text(
+                      'Vui lòng chọn ngày để xem trước tác động',
+                      style: TextStyle(color: Colors.white38),
+                    ),
                   ),
                 ),
             ],
@@ -240,7 +265,11 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
         children: [
           Text(
             widget.event['name'] as String,
-            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 8),
           Row(
@@ -271,7 +300,14 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Chọn ngày / tháng mới', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+          const Text(
+            'Chọn ngày / tháng mới',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
           const SizedBox(height: 12),
           // Precision mode selector
           Row(
@@ -282,7 +318,9 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
                   selected: _isExactMode,
                   selectedColor: Colors.pinkAccent,
                   backgroundColor: const Color(0xFF0F172A),
-                  labelStyle: TextStyle(color: _isExactMode ? Colors.white : Colors.white70),
+                  labelStyle: TextStyle(
+                    color: _isExactMode ? Colors.white : Colors.white70,
+                  ),
                   onSelected: (val) {
                     setState(() {
                       _isExactMode = true;
@@ -299,7 +337,9 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
                   selected: !_isExactMode,
                   selectedColor: Colors.pinkAccent,
                   backgroundColor: const Color(0xFF0F172A),
-                  labelStyle: TextStyle(color: !_isExactMode ? Colors.white : Colors.white70),
+                  labelStyle: TextStyle(
+                    color: !_isExactMode ? Colors.white : Colors.white70,
+                  ),
                   onSelected: (val) {
                     setState(() {
                       _isExactMode = false;
@@ -318,7 +358,10 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
             InkWell(
               onTap: _selectDate,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF0F172A),
                   borderRadius: BorderRadius.circular(8),
@@ -353,7 +396,15 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
                       border: OutlineInputBorder(),
                     ),
                     items: List.generate(12, (index) => index + 1)
-                        .map((m) => DropdownMenuItem(value: m, child: Text('Tháng $m', style: const TextStyle(color: Colors.white))))
+                        .map(
+                          (m) => DropdownMenuItem(
+                            value: m,
+                            child: Text(
+                              'Tháng $m',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        )
                         .toList(),
                     onChanged: (val) {
                       setState(() {
@@ -375,9 +426,21 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
                       filled: true,
                       border: OutlineInputBorder(),
                     ),
-                    items: List.generate(10, (index) => DateTime.now().year + index)
-                        .map((y) => DropdownMenuItem(value: y, child: Text('$y', style: const TextStyle(color: Colors.white))))
-                        .toList(),
+                    items:
+                        List.generate(
+                              10,
+                              (index) => DateTime.now().year + index,
+                            )
+                            .map(
+                              (y) => DropdownMenuItem(
+                                value: y,
+                                child: Text(
+                                  '$y',
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                              ),
+                            )
+                            .toList(),
                     onChanged: (val) {
                       setState(() {
                         _targetExpectedYear = val;
@@ -394,16 +457,28 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
   }
 
   Widget _buildPreviewDetails() {
-    final recalculated = List<dynamic>.from(_previewData!['recalculated_tasks'] ?? []);
-    final preserved = List<dynamic>.from(_previewData!['preserved_tasks'] ?? []);
-    final unresolved = List<dynamic>.from(_previewData!['unresolved_tasks'] ?? []);
-    final absoluteCount = (_previewData!['absolute_tasks_unchanged_count'] ?? 0) as int;
+    final recalculated = List<dynamic>.from(
+      _previewData!['recalculated_tasks'] ?? [],
+    );
+    final preserved = List<dynamic>.from(
+      _previewData!['preserved_tasks'] ?? [],
+    );
+    final unresolved = List<dynamic>.from(
+      _previewData!['unresolved_tasks'] ?? [],
+    );
+    final absoluteCount =
+        (_previewData!['absolute_tasks_unchanged_count'] ?? 0) as int;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Headers stats
-        _buildStatsBar(recalculated.length, absoluteCount, preserved.length, unresolved.length),
+        _buildStatsBar(
+          recalculated.length,
+          absoluteCount,
+          preserved.length,
+          unresolved.length,
+        ),
         const SizedBox(height: 16),
 
         // Unresolved tasks list (Precision Loss Warning)
@@ -433,7 +508,12 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
     );
   }
 
-  Widget _buildStatsBar(int recalc, int absolute, int preserved, int unresolved) {
+  Widget _buildStatsBar(
+    int recalc,
+    int absolute,
+    int preserved,
+    int unresolved,
+  ) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -446,9 +526,11 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
         alignment: WrapAlignment.spaceEvenly,
         children: [
           _buildStatItem('$recalc', 'Thay đổi', Colors.pinkAccent),
-          if (absolute > 0) _buildStatItem('$absolute', 'Cố định', Colors.blueAccent),
+          if (absolute > 0)
+            _buildStatItem('$absolute', 'Cố định', Colors.blueAccent),
           _buildStatItem('$preserved', 'Giữ nguyên', Colors.green),
-          if (unresolved > 0) _buildStatItem('$unresolved', 'Bị gỡ hạn', Colors.redAccent),
+          if (unresolved > 0)
+            _buildStatItem('$unresolved', 'Bị gỡ hạn', Colors.redAccent),
         ],
       ),
     );
@@ -464,7 +546,10 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
-        Text('$count $label', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+        Text(
+          '$count $label',
+          style: const TextStyle(color: Colors.white70, fontSize: 13),
+        ),
       ],
     );
   }
@@ -483,11 +568,19 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
           children: [
             const Row(
               children: [
-                Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 20),
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.redAccent,
+                  size: 20,
+                ),
                 SizedBox(width: 6),
                 Text(
                   'Cảnh báo mất mốc ngày chốt',
-                  style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 15),
+                  style: TextStyle(
+                    color: Colors.redAccent,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
                 ),
               ],
             ),
@@ -497,20 +590,29 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
               style: TextStyle(color: Colors.white70, fontSize: 12),
             ),
             const Divider(color: Colors.redAccent, height: 16, thickness: 0.1),
-            ...list.map((task) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4.0),
-              child: Row(
-                children: [
-                  const Icon(Icons.arrow_right, size: 14, color: Colors.redAccent),
-                  Expanded(
-                    child: Text(
-                      '${task['name']} (Offset: ${task['date_offset']} ngày)',
-                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ...list.map(
+              (task) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.arrow_right,
+                      size: 14,
+                      color: Colors.redAccent,
                     ),
-                  ),
-                ],
+                    Expanded(
+                      child: Text(
+                        '${task['name']} (Offset: ${task['date_offset']} ngày)',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            )),
+            ),
           ],
         ),
       ),
@@ -523,8 +625,12 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
       icon: Icons.sync_rounded,
       iconColor: Colors.pinkAccent,
       children: list.map((task) {
-        final oldDate = task['old_resolved_deadline_at'] != null ? (task['old_resolved_deadline_at'] as String) : 'Không có';
-        final newDate = task['new_resolved_deadline_at'] != null ? (task['new_resolved_deadline_at'] as String) : 'Chưa rõ';
+        final oldDate = task['old_resolved_deadline_at'] != null
+            ? (task['old_resolved_deadline_at'] as String)
+            : 'Không có';
+        final newDate = task['new_resolved_deadline_at'] != null
+            ? (task['new_resolved_deadline_at'] as String)
+            : 'Chưa rõ';
 
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 6.0),
@@ -532,13 +638,34 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
-                child: Text(task['name'] as String, style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                child: Text(
+                  task['name'] as String,
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
               ),
               Row(
                 children: [
-                  Text(oldDate, style: const TextStyle(color: Colors.white38, fontSize: 12, decoration: TextDecoration.lineThrough)),
-                  const Icon(Icons.arrow_forward, size: 12, color: Colors.pinkAccent),
-                  Text(newDate, style: const TextStyle(color: Colors.pinkAccent, fontSize: 13, fontWeight: FontWeight.bold)),
+                  Text(
+                    oldDate,
+                    style: const TextStyle(
+                      color: Colors.white38,
+                      fontSize: 12,
+                      decoration: TextDecoration.lineThrough,
+                    ),
+                  ),
+                  const Icon(
+                    Icons.arrow_forward,
+                    size: 12,
+                    color: Colors.pinkAccent,
+                  ),
+                  Text(
+                    newDate,
+                    style: const TextStyle(
+                      color: Colors.pinkAccent,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -569,7 +696,11 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
               children: [
                 Text(
                   '$count công việc có hạn cố định',
-                  style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 14),
+                  style: const TextStyle(
+                    color: Colors.blueAccent,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 const Text(
@@ -598,11 +729,17 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
               Expanded(
                 child: Text(
                   task['name'] as String,
-                  style: const TextStyle(color: Colors.white38, fontSize: 13, decoration: TextDecoration.lineThrough),
+                  style: const TextStyle(
+                    color: Colors.white38,
+                    fontSize: 13,
+                    decoration: TextDecoration.lineThrough,
+                  ),
                 ),
               ),
               Text(
-                task['resolved_deadline_at'] != null ? (task['resolved_deadline_at'] as String) : 'Không có hạn',
+                task['resolved_deadline_at'] != null
+                    ? (task['resolved_deadline_at'] as String)
+                    : 'Không có hạn',
                 style: const TextStyle(color: Colors.green, fontSize: 12),
               ),
             ],
@@ -635,7 +772,11 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
               ),
             ],
@@ -659,7 +800,9 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Colors.white10),
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 onPressed: _submitting ? null : () => Navigator.pop(context),
                 child: const Text('Hủy', style: TextStyle(color: Colors.white)),
@@ -671,16 +814,29 @@ class _EventDateChangePreviewScreenState extends State<EventDateChangePreviewScr
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.pinkAccent,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
-                onPressed: (_previewData == null || _submitting || _loading) ? null : _commitChange,
+                onPressed: (_previewData == null || _submitting || _loading)
+                    ? null
+                    : _commitChange,
                 child: _submitting
                     ? const SizedBox(
                         height: 20,
                         width: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
                       )
-                    : const Text('Lưu thay đổi', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    : const Text(
+                        'Lưu thay đổi',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
           ],

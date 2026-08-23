@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../services/supabase_service.dart';
 
 class PartyMovePreviewScreen extends StatefulWidget {
@@ -27,6 +28,20 @@ class _PartyMovePreviewScreenState extends State<PartyMovePreviewScreen> {
   int _targetInvitedCount = 0;
   String _impactFingerprint = '';
 
+  String _safeErrorMessage(Object error, String fallback) {
+    final text = error.toString();
+    if (text.contains('42501') || text.contains('Unauthorized')) {
+      return 'Bạn không có quyền thực hiện thao tác này hoặc đám cưới không còn ở trạng thái cho phép chỉnh sửa.';
+    }
+    if (text.contains('44000') || text.contains('not found')) {
+      return 'Khách mời hoặc nhóm mời liên quan không còn tồn tại. Vui lòng tải lại danh sách mới nhất.';
+    }
+    if (text.contains('40009') || text.contains('CONFLICT')) {
+      return 'Không thể hoàn tất thao tác vì trạng thái dữ liệu hiện tại cần được rà soát lại.';
+    }
+    return fallback;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -40,7 +55,10 @@ class _PartyMovePreviewScreenState extends State<PartyMovePreviewScreen> {
     });
 
     try {
-      final data = await SupabaseService.instance.previewGuestPartyMove(widget.guestId, widget.targetPartyId);
+      final data = await SupabaseService.instance.previewGuestPartyMove(
+        widget.guestId,
+        widget.targetPartyId,
+      );
       setState(() {
         _sourcePartyName = data['source_party_name'] as String?;
         _sourceInvitedCount = data['source_invited_count'] as int;
@@ -50,7 +68,10 @@ class _PartyMovePreviewScreenState extends State<PartyMovePreviewScreen> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Lỗi tải thông tin xem trước: $e';
+        _errorMessage = _safeErrorMessage(
+          e,
+          'Không thể tải thông tin xem trước. Vui lòng thử lại.',
+        );
         _isLoading = false;
       });
     }
@@ -63,7 +84,11 @@ class _PartyMovePreviewScreenState extends State<PartyMovePreviewScreen> {
     });
 
     try {
-      await SupabaseService.instance.commitGuestPartyMove(widget.guestId, widget.targetPartyId, _impactFingerprint);
+      await SupabaseService.instance.commitGuestPartyMove(
+        widget.guestId,
+        widget.targetPartyId,
+        _impactFingerprint,
+      );
       if (mounted) {
         Navigator.of(context).pop(true); // Return success
       }
@@ -73,7 +98,10 @@ class _PartyMovePreviewScreenState extends State<PartyMovePreviewScreen> {
         _showStaleImpactDialog();
       } else {
         setState(() {
-          _errorMessage = 'Lỗi di chuyển nhóm mời: $e';
+          _errorMessage = _safeErrorMessage(
+            e,
+            'Không thể lưu thay đổi nhóm mời vào lúc này. Vui lòng tải lại và thử lại.',
+          );
           _isLoading = false;
         });
       }
@@ -86,7 +114,10 @@ class _PartyMovePreviewScreenState extends State<PartyMovePreviewScreen> {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1E293B),
-        title: const Text('Dữ liệu đã thay đổi', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Dữ liệu đã thay đổi',
+          style: TextStyle(color: Colors.white),
+        ),
         content: const Text(
           'Thông số nhóm mời nguồn/đích hoặc số chỗ ngồi đã thay đổi kể từ khi xem trước. Vui lòng tải lại thông tin xem trước mới nhất.',
           style: TextStyle(color: Colors.white70),
@@ -97,7 +128,10 @@ class _PartyMovePreviewScreenState extends State<PartyMovePreviewScreen> {
               Navigator.of(ctx).pop();
               _loadPreview();
             },
-            child: const Text('Tải lại Preview', style: TextStyle(color: Color(0xFF00C6FF))),
+            child: const Text(
+              'Tải lại Preview',
+              style: TextStyle(color: Color(0xFF00C6FF)),
+            ),
           ),
         ],
       ),
@@ -112,102 +146,154 @@ class _PartyMovePreviewScreenState extends State<PartyMovePreviewScreen> {
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E293B),
-        title: Text(isRemove ? 'Xem trước gỡ khỏi nhóm' : 'Xem trước di chuyển nhóm', style: const TextStyle(color: Colors.white)),
+        title: Text(
+          isRemove ? 'Xem trước gỡ khỏi nhóm' : 'Xem trước di chuyển nhóm',
+          style: const TextStyle(color: Colors.white),
+        ),
         elevation: 0,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF00C6FF)))
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF00C6FF)),
+            )
           : _errorMessage != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _errorMessage!,
+                      style: const TextStyle(color: Colors.redAccent),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _loadPreview,
+                      child: const Text('Thử lại'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'XÁC NHẬN LUỒNG DI CHUYỂN / GỠ KHÁCH',
+                    style: TextStyle(
+                      color: Color(0xFF00C6FF),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Hành động: Di chuyển khách mời "${widget.guestName}"',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.02),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white.withOpacity(0.05)),
+                    ),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(_errorMessage!, style: const TextStyle(color: Colors.redAccent)),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _loadPreview,
-                          child: const Text('Thử lại'),
+                        _buildInfoRow(
+                          'Nhóm mời hiện tại:',
+                          _sourcePartyName ?? 'Khách lẻ độc lập (Unassigned)',
                         ),
+                        if (_sourcePartyName != null)
+                          _buildSubInfoRow(
+                            'Số người mời (chỗ ngồi) của nhóm cũ:',
+                            '$_sourceInvitedCount (Không đổi)',
+                          ),
+                        const Divider(color: Colors.white10, height: 24),
+                        _buildInfoRow(
+                          'Nhóm mời mới:',
+                          widget.targetPartyName ??
+                              'Khách lẻ độc lập (Unassigned)',
+                        ),
+                        if (widget.targetPartyId != null)
+                          _buildSubInfoRow(
+                            'Số người mời (chỗ ngồi) của nhóm mới:',
+                            '$_targetInvitedCount (Không đổi)',
+                          ),
                       ],
                     ),
                   ),
-                )
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Quy tắc nghiệp vụ áp dụng:',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const BulletPoint2(
+                    text: 'Hạn mức chỗ ngồi (Invited Count) của cả hai nhóm mời cũ và mới sẽ được giữ nguyên tuyệt đối.',
+                  ),
+                  const BulletPoint2(
+                    text: 'Khách mời không làm ảnh hưởng hay thay đổi cấu trúc RSVP, thiệp mời đã chuẩn bị/gửi của nhóm.',
+                  ),
+                  const BulletPoint2(
+                    text: 'Liên kết thiệp mời và RSVP thuộc về Nhóm mời (InvitationParty) chứ không thuộc về Khách lẻ.',
+                  ),
+                  const SizedBox(height: 32),
+                  Row(
                     children: [
-                      const Text(
-                        'XÁC NHẬN LUỒNG DI CHUYỂN / GỠ KHÁCH',
-                        style: TextStyle(color: Color(0xFF00C6FF), fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Hành động: Di chuyển khách mời "${widget.guestName}"',
-                        style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.02),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white.withOpacity(0.05)),
-                        ),
-                        child: Column(
-                          children: [
-                            _buildInfoRow('Nhóm mời hiện tại:', _sourcePartyName ?? 'Khách lẻ độc lập (Unassigned)'),
-                            if (_sourcePartyName != null)
-                              _buildSubInfoRow('Số người mời (chỗ ngồi) của nhóm cũ:', '$_sourceInvitedCount (Không đổi)'),
-                            const Divider(color: Colors.white10, height: 24),
-                            _buildInfoRow('Nhóm mời mới:', widget.targetPartyName ?? 'Khách lẻ độc lập (Unassigned)'),
-                            if (widget.targetPartyId != null)
-                              _buildSubInfoRow('Số người mời (chỗ ngồi) của nhóm mới:', '$_targetInvitedCount (Không đổi)'),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        'Quy tắc nghiệp vụ áp dụng:',
-                        style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      const BulletPoint2(text: 'Hạn mức chỗ ngồi (Invited Count) của cả hai nhóm mời cũ và mới sẽ được giữ nguyên tuyệt đối.'),
-                      const BulletPoint2(text: 'Khách mời không làm ảnh hưởng hay thay đổi cấu trúc RSVP, thiệp mời đã chuẩn bị/gửi của nhóm.'),
-                      const BulletPoint2(text: 'Liên kết thiệp mời và RSVP thuộc về Nhóm mời (InvitationParty) chứ không thuộc về Khách lẻ.'),
-                      const SizedBox(height: 32),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: Colors.white24),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                              ),
-                              onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('Hủy', style: TextStyle(color: Colors.white70)),
+                      Expanded(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.white24),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
                             ),
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF00C6FF),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                              ),
-                              onPressed: _handleCommit,
-                              child: const Text('Xác nhận lưu', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold)),
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text(
+                            'Hủy',
+                            style: TextStyle(color: Colors.white70),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00C6FF),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
                             ),
                           ),
-                        ],
+                          onPressed: _handleCommit,
+                          child: const Text(
+                            'Xác nhận lưu',
+                            style: TextStyle(
+                              color: Color(0xFF0F172A),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                ),
+                ],
+              ),
+            ),
     );
   }
 
@@ -217,11 +303,21 @@ class _PartyMovePreviewScreenState extends State<PartyMovePreviewScreen> {
       children: [
         Expanded(
           flex: 4,
-          child: Text(label, style: const TextStyle(color: Colors.white54, fontSize: 13)),
+          child: Text(
+            label,
+            style: const TextStyle(color: Colors.white54, fontSize: 13),
+          ),
         ),
         Expanded(
           flex: 6,
-          child: Text(value, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ),
       ],
     );
@@ -235,11 +331,21 @@ class _PartyMovePreviewScreenState extends State<PartyMovePreviewScreen> {
         children: [
           Expanded(
             flex: 6,
-            child: Text(label, style: const TextStyle(color: Colors.white30, fontSize: 11)),
+            child: Text(
+              label,
+              style: const TextStyle(color: Colors.white30, fontSize: 11),
+            ),
           ),
           Expanded(
             flex: 4,
-            child: Text(value, style: const TextStyle(color: Color(0xFF00C6FF), fontSize: 11, fontWeight: FontWeight.w500)),
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Color(0xFF00C6FF),
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),
@@ -258,8 +364,20 @@ class BulletPoint2 extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('• ', style: TextStyle(color: Color(0xFF00C6FF), fontSize: 14)),
-          Expanded(child: Text(text, style: const TextStyle(color: Colors.white60, fontSize: 13, height: 1.4))),
+          const Text(
+            '• ',
+            style: TextStyle(color: Color(0xFF00C6FF), fontSize: 14),
+          ),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Colors.white60,
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+          ),
         ],
       ),
     );

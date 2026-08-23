@@ -2,7 +2,7 @@
 
 ## Giai đoạn Hiện tại
 
-Implementation -> M2B.1: Guest / PrimaryGroup / InvitationParty Foundation — **IN REVIEW** (139/139 tests pass, transition constraints verified, Flutter tests pass)
+Implementation -> M2B.3: Excel Guest Import — **IN REVIEW** (TOP-GUE-004 implemented; clean reset pass; DB 193/193 pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 192 info)
 
 ## Tình trạng Dự án
 
@@ -85,7 +85,13 @@ Tập trung vào các mảng cốt lõi:
 *   **M0 Implementation Decision Gate:** 🟢 **Đã Phê duyệt (Approved)** - Chi tiết tại [12-m0-implementation-decision-gate.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/12-m0-implementation-decision-gate.md)
 *   **M2A.1 Planning Foundation:** 🟢 **Đã hoàn thành (Complete)** - Chi tiết tại [14-m2a1-planning-foundation.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/14-m2a1-planning-foundation.md)
 *   **M2A.2 Date Change & Removal Previews:** 🟢 **Đã hoàn thành (Complete / Approved)** — IMPL-CONFLICT-006 resolved, 116 tests pass — Chi tiết tại [15-m2a2-event-impact-review.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/15-m2a2-event-impact-review.md)
-*   **M2B.1 Guest Core Foundation:** 🟡 **Đang đánh giá (In Review)** — 139 tests pass, transition constraints verified, Flutter tests pass — Chi tiết tại [16-m2b1-guest-foundation.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/16-m2b1-guest-foundation.md)
+*   **M2B.1 Guest Core Foundation:** 🟢 **Đã phê duyệt (Approved)** — 139 tests pass, transition constraints verified, Flutter tests pass — Chi tiết tại [16-m2b1-guest-foundation.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/16-m2b1-guest-foundation.md)
+*   **M2B.2 Guest Impact Operations:** 🟢 **Đã phê duyệt (Approved)** — IMPL-CONFLICT-010 and IMPL-CONFLICT-011 resolved; DB 166/166 pass; Flutter tests pass; Flutter analyze has 0 errors / 0 warnings and info-level diagnostics tracked as analyzer debt — Chi tiết tại [17-m2b2-guest-impact-operations.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/17-m2b2-guest-impact-operations.md)
+*   **M2B.3 Excel Guest Import:** 🟡 **Đang đánh giá (In Review)** — TOP-GUE-004 local XLSX parsing, Preview, trusted Confirm Import, durable receipt retry, server revalidation, and tests implemented; DB 193/193 pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 192 info — Chi tiết tại [18-m2b3-excel-import.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/18-m2b3-excel-import.md)
+
+## Gap Register
+
+*   **`TECH-DEBT-001` (Legacy M2A.2 MD5 stale-impact fingerprints):** 🟡 **Open / Non-blocking** — M2A.2 MD5 fingerprints are stale-impact change detectors only; they are not credentials, authorization tokens, idempotency tokens, replay proof, or authenticity proof. Do not describe them as secure.
 
 ## Các câu hỏi mở cần Product Owner làm rõ về Kiến trúc
 
@@ -99,9 +105,8 @@ Tập trung vào các mảng cốt lõi:
 
 ## Giai đoạn Tiếp theo
 
-Implementation -> M2B.2: Guest Merge, Move & Removal Impact Reviews, and M3: Invitation & RSVP / Credentials.
+Implementation -> Product Owner review for M2B.3. M3: Invitation & RSVP / Credentials only after approval.
 
 ## Hành động Khuyên dùng tiếp theo
 
-Bắt đầu triển khai phân tích và thiết kế tác động cho việc Di chuyển, Gộp, Xóa nhóm và nhập dữ liệu Excel Khách mời (TOP-GUE-001 -> TOP-GUE-003, Excel Import).
-
+Product Owner review M2B.3 Excel Guest Import. Recommendation: M2B.3 complete. Không bắt đầu Invitation Credential, Guest Web, RSVP, Finance, Media hoặc Wedding Delete trước khi M2B.3 được phê duyệt.

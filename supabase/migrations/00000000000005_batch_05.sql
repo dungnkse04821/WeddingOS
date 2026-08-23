@@ -2,16 +2,16 @@
 -- BATCH-05: M2B.2 Guest Impact Operations
 -- =============================================================================
 
--- Redefine trigger function to check GUC setting before raising exception
+-- Redefine trigger function to derive trusted mutation authority from the
+-- SECURITY DEFINER execution role, not from any client-settable flag.
 CREATE OR REPLACE FUNCTION public.fn_enforce_guest_party_transition()
 RETURNS trigger
 LANGUAGE plpgsql
-SECURITY DEFINER
+SECURITY INVOKER
 SET search_path = ''
 AS $$
 BEGIN
-  -- Allow if GUC trusted_operation is set to 'true'
-  IF current_setting('weddingos.trusted_operation', true) = 'true' THEN
+  IF current_user = 'trusted_function_owner' THEN
     RETURN NEW;
   END IF;
 
@@ -54,10 +54,12 @@ BEGIN
 
   -- Authenticate & Authorize
   SELECT role INTO v_caller_role
-  FROM public.wedding_members
-  WHERE wedding_id = v_wedding_id
-    AND user_id = auth.uid()
-    AND status = 'ACTIVE';
+  FROM public.wedding_members m
+  JOIN public.weddings w ON w.id = m.wedding_id
+  WHERE m.wedding_id = v_wedding_id
+    AND m.user_id = auth.uid()
+    AND m.status = 'ACTIVE'
+    AND w.status = 'ACTIVE';
 
   IF v_caller_role IS NULL THEN
     RAISE EXCEPTION 'Unauthorized: Caller is not an active member of this wedding.'
@@ -78,8 +80,8 @@ BEGIN
     ORDER BY name ASC, id ASC
   ) t;
 
-  -- Calculate fingerprint: MD5(group_delete:<group_id>:<group_name>:<count>:<sorted list of guest ids>)
-  SELECT md5('group_delete:' || p_group_id || ':' || v_group_name || ':' || v_affected_count || ':' || COALESCE(string_agg(id::text, ','), ''))
+  -- impact_fingerprint is a stale-impact detector only, not authorization or idempotency proof.
+  SELECT encode(extensions.digest('group_delete:' || p_group_id || ':' || v_group_name || ':' || v_affected_count || ':' || COALESCE(string_agg(id::text, ','), ''), 'sha256'), 'hex')
   INTO v_fingerprint
   FROM (
     SELECT id FROM public.guests WHERE primary_group_id = p_group_id ORDER BY id ASC
@@ -125,10 +127,12 @@ BEGIN
 
   -- Authenticate & Authorize
   SELECT role INTO v_caller_role
-  FROM public.wedding_members
-  WHERE wedding_id = v_wedding_id
-    AND user_id = auth.uid()
-    AND status = 'ACTIVE';
+  FROM public.wedding_members m
+  JOIN public.weddings w ON w.id = m.wedding_id
+  WHERE m.wedding_id = v_wedding_id
+    AND m.user_id = auth.uid()
+    AND m.status = 'ACTIVE'
+    AND w.status = 'ACTIVE';
 
   IF v_caller_role IS NULL THEN
     RAISE EXCEPTION 'Unauthorized: Caller is not an active member of this wedding.'
@@ -143,7 +147,7 @@ BEGIN
   FROM public.guests
   WHERE primary_group_id = p_group_id;
 
-  SELECT md5('group_delete:' || p_group_id || ':' || v_group_name || ':' || v_affected_count || ':' || COALESCE(string_agg(id::text, ','), ''))
+  SELECT encode(extensions.digest('group_delete:' || p_group_id || ':' || v_group_name || ':' || v_affected_count || ':' || COALESCE(string_agg(id::text, ','), ''), 'sha256'), 'hex')
   INTO v_fingerprint
   FROM (
     SELECT id FROM public.guests WHERE primary_group_id = p_group_id ORDER BY id ASC
@@ -208,10 +212,12 @@ BEGIN
 
   -- Authenticate & Authorize
   SELECT role INTO v_caller_role
-  FROM public.wedding_members
-  WHERE wedding_id = v_wedding_id
-    AND user_id = auth.uid()
-    AND status = 'ACTIVE';
+  FROM public.wedding_members m
+  JOIN public.weddings w ON w.id = m.wedding_id
+  WHERE m.wedding_id = v_wedding_id
+    AND m.user_id = auth.uid()
+    AND m.status = 'ACTIVE'
+    AND w.status = 'ACTIVE';
 
   IF v_caller_role IS NULL THEN
     RAISE EXCEPTION 'Unauthorized: Caller is not an active member of this wedding.'
@@ -234,12 +240,12 @@ BEGIN
     END IF;
   END IF;
 
-  -- Calculate fingerprint: MD5(party_move:<guest_id>:<src_party_id>:<src_invited>:<tgt_party_id>:<tgt_invited>)
-  v_fingerprint := md5('party_move:' || p_guest_id || ':' || 
-                       COALESCE(v_current_party_id::text, 'null') || ':' || 
-                       v_source_invited_count || ':' || 
-                       COALESCE(p_target_party_id::text, 'null') || ':' || 
-                       v_target_invited_count);
+  -- impact_fingerprint is a stale-impact detector only, not authorization or idempotency proof.
+  v_fingerprint := encode(extensions.digest('party_move:' || p_guest_id || ':' ||
+                       COALESCE(v_current_party_id::text, 'null') || ':' ||
+                       v_source_invited_count || ':' ||
+                       COALESCE(p_target_party_id::text, 'null') || ':' ||
+                       v_target_invited_count, 'sha256'), 'hex');
 
   RETURN jsonb_build_object(
     'guest_id', p_guest_id,
@@ -283,7 +289,21 @@ BEGIN
     RAISE EXCEPTION 'Guest not found.' USING ERRCODE = '44000';
   END IF;
 
-  -- Retry guard: if current state already equals target, return terminal success
+  -- Authenticate & Authorize
+  SELECT role INTO v_caller_role
+  FROM public.wedding_members m
+  JOIN public.weddings w ON w.id = m.wedding_id
+  WHERE m.wedding_id = v_wedding_id
+    AND m.user_id = auth.uid()
+    AND m.status = 'ACTIVE'
+    AND w.status = 'ACTIVE';
+
+  IF v_caller_role IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized: Caller is not an active member of this wedding.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  -- Retry guard: authorized actor, authoritative current guest state already equals target.
   IF v_current_party_id IS NOT DISTINCT FROM p_target_party_id THEN
     RETURN jsonb_build_object(
       'replayed', true,
@@ -291,18 +311,6 @@ BEGIN
       'invitation_party_id', p_target_party_id,
       'success', true
     );
-  END IF;
-
-  -- Authenticate & Authorize
-  SELECT role INTO v_caller_role
-  FROM public.wedding_members
-  WHERE wedding_id = v_wedding_id
-    AND user_id = auth.uid()
-    AND status = 'ACTIVE';
-
-  IF v_caller_role IS NULL THEN
-    RAISE EXCEPTION 'Unauthorized: Caller is not an active member of this wedding.'
-      USING ERRCODE = '42501';
   END IF;
 
   -- Lock wedding
@@ -325,19 +333,16 @@ BEGIN
   END IF;
 
   -- Recompute fingerprint
-  v_fingerprint := md5('party_move:' || p_guest_id || ':' || 
-                       COALESCE(v_current_party_id::text, 'null') || ':' || 
-                       v_source_invited_count || ':' || 
-                       COALESCE(p_target_party_id::text, 'null') || ':' || 
-                       v_target_invited_count);
+  v_fingerprint := encode(extensions.digest('party_move:' || p_guest_id || ':' ||
+                       COALESCE(v_current_party_id::text, 'null') || ':' ||
+                       v_source_invited_count || ':' ||
+                       COALESCE(p_target_party_id::text, 'null') || ':' ||
+                       v_target_invited_count, 'sha256'), 'hex');
 
   IF v_fingerprint IS DISTINCT FROM p_impact_fingerprint THEN
     RAISE EXCEPTION 'STALE_IMPACT: The planning workspace state has changed since the preview was generated.'
       USING ERRCODE = '40001';
   END IF;
-
-  -- Set GUC trusted operation bypass to true local to the transaction
-  PERFORM set_config('weddingos.trusted_operation', 'true', true);
 
   -- Perform the update (no recalculation of invited counts!)
   UPDATE public.guests
@@ -389,10 +394,12 @@ BEGIN
 
   -- Authenticate & Authorize
   SELECT role INTO v_caller_role
-  FROM public.wedding_members
-  WHERE wedding_id = v_guest_1.wedding_id
-    AND user_id = auth.uid()
-    AND status = 'ACTIVE';
+  FROM public.wedding_members m
+  JOIN public.weddings w ON w.id = m.wedding_id
+  WHERE m.wedding_id = v_guest_1.wedding_id
+    AND m.user_id = auth.uid()
+    AND m.status = 'ACTIVE'
+    AND w.status = 'ACTIVE';
 
   IF v_caller_role IS NULL THEN
     RAISE EXCEPTION 'Unauthorized: Caller is not an active member of this wedding.'
@@ -431,10 +438,10 @@ BEGIN
     )
   );
 
-  -- Calculate fingerprint: MD5(guest_merge:<g1_state>:<g2_state>)
-  v_fingerprint := md5('guest_merge:' || 
+  -- impact_fingerprint is a stale-impact detector only, not authorization or idempotency proof.
+  v_fingerprint := encode(extensions.digest('guest_merge:' ||
                        v_guest_1.id || ':' || v_guest_1.name || ':' || COALESCE(v_guest_1.phone, '') || ':' || COALESCE(v_guest_1.email, '') || ':' || v_guest_1.side || ':' || v_guest_1.guest_source || ':' || COALESCE(v_guest_1.primary_group_id::text, '') || ':' || COALESCE(v_guest_1.invitation_party_id::text, '') || ':' ||
-                       v_guest_2.id || ':' || v_guest_2.name || ':' || COALESCE(v_guest_2.phone, '') || ':' || COALESCE(v_guest_2.email, '') || ':' || v_guest_2.side || ':' || v_guest_2.guest_source || ':' || COALESCE(v_guest_2.primary_group_id::text, '') || ':' || COALESCE(v_guest_2.invitation_party_id::text, ''));
+                       v_guest_2.id || ':' || v_guest_2.name || ':' || COALESCE(v_guest_2.phone, '') || ':' || COALESCE(v_guest_2.email, '') || ':' || v_guest_2.side || ':' || v_guest_2.guest_source || ':' || COALESCE(v_guest_2.primary_group_id::text, '') || ':' || COALESCE(v_guest_2.invitation_party_id::text, ''), 'sha256'), 'hex');
 
   RETURN jsonb_build_object(
     'guest_1', jsonb_build_object(
@@ -492,27 +499,22 @@ BEGIN
   -- Load secondary
   SELECT * INTO v_secondary FROM public.guests WHERE id = p_secondary_guest_id;
 
-  -- Retry/Replay Check:
-  -- "If secondary guest is already deleted, compare survivor's current values with resolutions.
-  --  Replays success if all match; returns STALE_STATE or CONFLICT otherwise."
   IF v_survivor.id IS NOT NULL AND v_secondary.id IS NULL THEN
-    IF v_survivor.name IS NOT DISTINCT FROM p_resolved_name AND
-       v_survivor.phone IS NOT DISTINCT FROM p_resolved_phone AND
-       v_survivor.email IS NOT DISTINCT FROM p_resolved_email AND
-       v_survivor.side IS NOT DISTINCT FROM p_resolved_side AND
-       v_survivor.guest_source IS NOT DISTINCT FROM p_resolved_guest_source AND
-       v_survivor.primary_group_id IS NOT DISTINCT FROM p_resolved_primary_group_id AND
-       v_survivor.invitation_party_id IS NOT DISTINCT FROM p_resolved_invitation_party_id THEN
-       
-       RETURN jsonb_build_object(
-         'replayed', true,
-         'survivor_guest_id', p_survivor_guest_id,
-         'success', true
-       );
-    ELSE
-       RAISE EXCEPTION 'CONFLICT: The survivor guest attributes do not match the expected resolved merge values.'
-         USING ERRCODE = '40009';
+    SELECT role INTO v_caller_role
+    FROM public.wedding_members m
+    JOIN public.weddings w ON w.id = m.wedding_id
+    WHERE m.wedding_id = v_survivor.wedding_id
+      AND m.user_id = auth.uid()
+      AND m.status = 'ACTIVE'
+      AND w.status = 'ACTIVE';
+
+    IF v_caller_role IS NULL THEN
+      RAISE EXCEPTION 'Unauthorized: Caller is not an active member of this wedding.'
+        USING ERRCODE = '42501';
     END IF;
+
+    RAISE EXCEPTION 'CONFLICT: The secondary guest is absent and this merge retry cannot be proven from an approved durable source.'
+      USING ERRCODE = '40009';
   END IF;
 
   -- Regular Checks
@@ -526,10 +528,12 @@ BEGIN
 
   -- Authenticate & Authorize
   SELECT role INTO v_caller_role
-  FROM public.wedding_members
-  WHERE wedding_id = v_survivor.wedding_id
-    AND user_id = auth.uid()
-    AND status = 'ACTIVE';
+  FROM public.wedding_members m
+  JOIN public.weddings w ON w.id = m.wedding_id
+  WHERE m.wedding_id = v_survivor.wedding_id
+    AND m.user_id = auth.uid()
+    AND m.status = 'ACTIVE'
+    AND w.status = 'ACTIVE';
 
   IF v_caller_role IS NULL THEN
     RAISE EXCEPTION 'Unauthorized: Caller is not an active member of this wedding.'
@@ -569,17 +573,14 @@ BEGIN
   PERFORM id FROM public.weddings WHERE id = v_survivor.wedding_id FOR UPDATE;
 
   -- Recompute fingerprint
-  v_fingerprint := md5('guest_merge:' || 
+  v_fingerprint := encode(extensions.digest('guest_merge:' ||
                        v_survivor.id || ':' || v_survivor.name || ':' || COALESCE(v_survivor.phone, '') || ':' || COALESCE(v_survivor.email, '') || ':' || v_survivor.side || ':' || v_survivor.guest_source || ':' || COALESCE(v_survivor.primary_group_id::text, '') || ':' || COALESCE(v_survivor.invitation_party_id::text, '') || ':' ||
-                       v_secondary.id || ':' || v_secondary.name || ':' || COALESCE(v_secondary.phone, '') || ':' || COALESCE(v_secondary.email, '') || ':' || v_secondary.side || ':' || v_secondary.guest_source || ':' || COALESCE(v_secondary.primary_group_id::text, '') || ':' || COALESCE(v_secondary.invitation_party_id::text, ''));
+                       v_secondary.id || ':' || v_secondary.name || ':' || COALESCE(v_secondary.phone, '') || ':' || COALESCE(v_secondary.email, '') || ':' || v_secondary.side || ':' || v_secondary.guest_source || ':' || COALESCE(v_secondary.primary_group_id::text, '') || ':' || COALESCE(v_secondary.invitation_party_id::text, ''), 'sha256'), 'hex');
 
   IF v_fingerprint IS DISTINCT FROM p_impact_fingerprint THEN
     RAISE EXCEPTION 'STALE_IMPACT: The planning workspace state has changed since the preview was generated.'
       USING ERRCODE = '40001';
   END IF;
-
-  -- Set GUC trusted operation bypass to true local to the transaction
-  PERFORM set_config('weddingos.trusted_operation', 'true', true);
 
   -- Update survivor guest with resolved values
   UPDATE public.guests
