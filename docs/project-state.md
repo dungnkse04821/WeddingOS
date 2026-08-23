@@ -2,7 +2,7 @@
 
 ## Giai đoạn Hiện tại
 
-Implementation -> M3: Invitation / Credential Foundation — **IN REVIEW** (Invitation schema, targeting, lifecycle, TOP-INV-001 credential regeneration, organizer UI, and tests implemented; clean reset pass; DB 232/232 pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 191 info)
+Implementation -> M4: Public Guest Invitation Resolve — **IN REVIEW** (D-INV-001 resolve primitive, Edge Function, Guest Web shell, token fragment handling, view tracking, Class-D abuse control, and tests implemented; DB 270/270 pass; Guest Web tests/lint/build pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 191 info)
 
 ## Tình trạng Dự án
 
@@ -88,7 +88,8 @@ Tập trung vào các mảng cốt lõi:
 *   **M2B.1 Guest Core Foundation:** 🟢 **Đã phê duyệt (Approved)** — 139 tests pass, transition constraints verified, Flutter tests pass — Chi tiết tại [16-m2b1-guest-foundation.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/16-m2b1-guest-foundation.md)
 *   **M2B.2 Guest Impact Operations:** 🟢 **Đã phê duyệt (Approved)** — IMPL-CONFLICT-010 and IMPL-CONFLICT-011 resolved; DB 166/166 pass; Flutter tests pass; Flutter analyze has 0 errors / 0 warnings and info-level diagnostics tracked as analyzer debt — Chi tiết tại [17-m2b2-guest-impact-operations.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/17-m2b2-guest-impact-operations.md)
 *   **M2B.3 Excel Guest Import:** 🟢 **Đã phê duyệt (Approved)** — TOP-GUE-004 local XLSX parsing, Preview, trusted Confirm Import, durable receipt retry, server revalidation, and tests implemented; DB 193/193 pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 192 info — Chi tiết tại [18-m2b3-excel-import.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/18-m2b3-excel-import.md)
-*   **M3 Invitation / Credential Foundation:** 🟡 **Đang đánh giá (In Review)** — Invitation schema, Event targeting, lifecycle triggers, DEC-B-002 credential format, TOP-INV-001 credential regeneration, active credential invariant, organizer UI, and tests implemented; DB 232/232 pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 191 info — Chi tiết tại [19-m3-invitation-credential-foundation.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/19-m3-invitation-credential-foundation.md)
+*   **M3 Invitation / Credential Foundation:** 🟢 **Đã phê duyệt (Approved)** — Invitation schema, Event targeting, lifecycle triggers, DEC-B-002 credential format, TOP-INV-001 credential regeneration, active credential invariant, organizer UI, and tests implemented; DB 232/232 pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 191 info — Chi tiết tại [19-m3-invitation-credential-foundation.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/19-m3-invitation-credential-foundation.md)
+*   **M4 Public Guest Invitation Resolve:** 🟡 **Đang đánh giá (In Review)** — D-INV-001 public resolve, Guest Web shell, URL fragment token extraction/scrubbing, sanitized DTO, view tracking, Edge Function, and DEC-B-004 Class-D rate limiting implemented; DB 270/270 pass; Guest Web tests/lint/build pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 191 info — Chi tiết tại [20-m4-public-invitation-resolve.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/20-m4-public-invitation-resolve.md)
 
 ## Gap Register
 
@@ -106,8 +107,8 @@ Tập trung vào các mảng cốt lõi:
 
 ## Giai đoạn Tiếp theo
 
-Implementation -> Product Owner review for M3 Invitation / Credential Foundation. Class D public resolve, Guest Web, RSVP, VietQR, Finance, and Media remain outside the current checkpoint.
+Implementation -> Product Owner review for M4 Public Guest Invitation Resolve. RSVP mutation, VietQR, Finance, Media, push/email/SMS, and additional organizer Invitation changes remain outside the current checkpoint.
 
 ## Hành động Khuyên dùng tiếp theo
 
-Product Owner review M3 Invitation / Credential Foundation. Recommendation: M3 complete if final clean reset, regression, commit, and push gates pass. Không bắt đầu Class D public resolve, Guest Web, RSVP, VietQR, Finance, Media hoặc Wedding Delete trước khi M3 được phê duyệt.
+Product Owner review M4 Public Guest Invitation Resolve after final clean reset, regression, commit, and push gates pass. Không bắt đầu RSVP mutation, VietQR, Finance, Media, push/email/SMS hoặc Wedding Delete trước khi M4 được phê duyệt.

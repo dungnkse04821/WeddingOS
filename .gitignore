@@ -1,1 +1,7 @@
  
+guest_web/node_modules/
+guest_web/dist/
+
+*.log
+.env
+.env.*

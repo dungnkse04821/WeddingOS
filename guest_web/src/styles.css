@@ -1,0 +1,149 @@
+:root {
+  color: #2d2218;
+  background: #f7efe2;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 15% 12%, rgba(204, 109, 70, 0.2), transparent 28rem),
+    radial-gradient(circle at 85% 0%, rgba(80, 126, 117, 0.22), transparent 22rem),
+    linear-gradient(135deg, #fbf2df 0%, #ead1b8 100%);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.shell {
+  min-height: 100vh;
+  padding: 24px;
+  display: grid;
+  place-items: center;
+}
+
+.status-card,
+.invitation-card {
+  width: min(100%, 760px);
+  border: 1px solid rgba(91, 60, 37, 0.2);
+  border-radius: 32px;
+  background: rgba(255, 252, 246, 0.84);
+  box-shadow: 0 24px 80px rgba(61, 39, 26, 0.16);
+  backdrop-filter: blur(16px);
+}
+
+.status-card {
+  padding: 40px;
+  text-align: center;
+}
+
+.status-card h1,
+.invitation-card h1 {
+  margin: 0;
+  font-size: clamp(2.3rem, 9vw, 5rem);
+  line-height: 0.92;
+  letter-spacing: -0.04em;
+}
+
+.status-card p,
+.invitation-card p {
+  color: #6f5a48;
+}
+
+.invitation-card {
+  padding: clamp(24px, 6vw, 52px);
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 0.74rem;
+  color: #b75f3d;
+}
+
+.wedding-name {
+  margin: 20px 0 8px;
+  font-size: 1.3rem;
+}
+
+.invited-count {
+  display: inline-flex;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(74, 109, 101, 0.12);
+  color: #385c54;
+}
+
+.event-list {
+  display: grid;
+  gap: 14px;
+  margin: 28px 0;
+}
+
+.event-card {
+  padding: 20px;
+  border-radius: 22px;
+  background: #fff8ed;
+  border: 1px solid rgba(91, 60, 37, 0.14);
+}
+
+.event-card h2,
+.rsvp-note h2,
+.contact h2 {
+  margin: 0 0 8px;
+}
+
+.event-card p {
+  margin: 6px 0;
+}
+
+.event-mode {
+  display: inline-flex;
+  margin: 0 0 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #365e56;
+  color: #fff8ed !important;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.event-card a {
+  color: #b75f3d;
+  font-weight: 700;
+}
+
+.rsvp-note,
+.contact {
+  margin-top: 18px;
+  padding: 20px;
+  border-radius: 24px;
+  background: rgba(183, 95, 61, 0.09);
+}
+
+.rsvp-note button {
+  width: 100%;
+  padding: 13px 18px;
+  border: 0;
+  border-radius: 999px;
+  color: #6f5a48;
+  background: rgba(111, 90, 72, 0.16);
+}
+
+@media (min-width: 720px) {
+  .event-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
