@@ -7,6 +7,7 @@ import '../foundation/constants.dart';
 import '../models/task_model.dart';
 import '../models/primary_group_model.dart';
 import '../models/invitation_party_model.dart';
+import '../models/invitation_model.dart';
 import '../models/guest_model.dart';
 import '../models/guest_import_model.dart';
 
@@ -237,6 +238,27 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(data);
   }
 
+  /// Fetches all events for invitation targeting, including REMOVED rows so
+  /// the UI can show why removed events are not selectable.
+  Future<List<WeddingEventInvitationOption>> fetchInvitationEventOptions(
+    String weddingId,
+  ) async {
+    final data = await client
+        .from('wedding_events')
+        .select(
+          'id, wedding_id, name, expected_year, expected_month, exact_date, lifecycle_status',
+        )
+        .eq('wedding_id', weddingId)
+        .order('created_at', ascending: true);
+    return (data as List)
+        .map(
+          (json) => WeddingEventInvitationOption.fromJson(
+            json as Map<String, dynamic>,
+          ),
+        )
+        .toList();
+  }
+
   /// Creates a Main Event for the wedding workspace.
   Future<void> createMainEvent({
     required String weddingId,
@@ -459,7 +481,7 @@ class SupabaseService {
     if (phone != null && phone.trim().isNotEmpty) {
       normPhone = phone.replaceAll(RegExp(r'\D'), '');
       if (normPhone.startsWith('84')) {
-        normPhone = '0' + normPhone.substring(2);
+        normPhone = '0${normPhone.substring(2)}';
       }
     }
 
@@ -617,6 +639,118 @@ class SupabaseService {
       },
     );
     return GuestImportConfirmResult.fromJson(
+      Map<String, dynamic>.from(response as Map),
+    );
+  }
+
+  // ===========================================================================
+  // M3 INVITATION / CREDENTIAL SERVICES
+  // ===========================================================================
+
+  Future<List<InvitationModel>> fetchInvitations(String weddingId) async {
+    final data = await client
+        .from('invitations')
+        .select('*')
+        .eq('wedding_id', weddingId)
+        .order('created_at', ascending: true);
+    return (data as List)
+        .map((json) => InvitationModel.fromJson(json as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<InvitationTargetingModel>> fetchInvitationTargetings(
+    String weddingId,
+  ) async {
+    final data = await client
+        .from('invitation_event_targetings')
+        .select('*')
+        .eq('wedding_id', weddingId);
+    return (data as List)
+        .map(
+          (json) =>
+              InvitationTargetingModel.fromJson(json as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  Future<InvitationModel> createInvitation({
+    required String weddingId,
+    required String invitationPartyId,
+  }) async {
+    final response = await client
+        .from('invitations')
+        .insert({
+          'wedding_id': weddingId,
+          'invitation_party_id': invitationPartyId,
+        })
+        .select()
+        .single();
+    return InvitationModel.fromJson(response);
+  }
+
+  Future<void> updateInvitationStatus({
+    required String invitationId,
+    required String status,
+  }) async {
+    await client
+        .from('invitations')
+        .update({'status': status})
+        .eq('id', invitationId);
+  }
+
+  Future<void> replaceInvitationTargetings({
+    required String weddingId,
+    required String invitationId,
+    required Set<String> targetEventIds,
+  }) async {
+    final current = await client
+        .from('invitation_event_targetings')
+        .select('wedding_event_id')
+        .eq('wedding_id', weddingId)
+        .eq('invitation_id', invitationId);
+
+    final currentIds = (current as List)
+        .map(
+          (row) => (row as Map<String, dynamic>)['wedding_event_id'] as String,
+        )
+        .toSet();
+    final toDelete = currentIds.difference(targetEventIds);
+    final toInsert = targetEventIds.difference(currentIds);
+
+    for (final eventId in toDelete) {
+      await client
+          .from('invitation_event_targetings')
+          .delete()
+          .eq('wedding_id', weddingId)
+          .eq('invitation_id', invitationId)
+          .eq('wedding_event_id', eventId);
+    }
+
+    if (toInsert.isNotEmpty) {
+      await client
+          .from('invitation_event_targetings')
+          .insert(
+            toInsert
+                .map(
+                  (eventId) => {
+                    'wedding_id': weddingId,
+                    'invitation_id': invitationId,
+                    'wedding_event_id': eventId,
+                  },
+                )
+                .toList(),
+          );
+    }
+  }
+
+  Future<InvitationCredentialResult> regenerateInvitationCredential(
+    String invitationId,
+  ) async {
+    final response = await client.rpc(
+      'regenerate_invitation_credential',
+      params: {'p_invitation_id': invitationId},
+    );
+    return InvitationCredentialResult.fromJson(
       Map<String, dynamic>.from(response as Map),
     );
   }

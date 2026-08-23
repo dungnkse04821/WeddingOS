@@ -590,17 +590,25 @@ SELECT results_eq(
 
 RESET ROLE;
 
--- Create invitation_event_targetings matching approved Physical Design (Table 14).
--- NO is_active column — only the 3 approved columns with composite PK.
-CREATE TABLE public.invitation_event_targetings (
-  wedding_id uuid NOT NULL,
-  invitation_id uuid NOT NULL,
-  wedding_event_id uuid NOT NULL,
-  CONSTRAINT pk_invitation_event_targeting_test PRIMARY KEY (invitation_id, wedding_event_id)
-);
+-- BATCH-07 now owns the real invitation_event_targetings table. Seed a valid
+-- Invitation row so this historical M2A.2 preservation assertion exercises the
+-- production schema rather than a test-only table.
+INSERT INTO public.invitation_parties (id, wedding_id, display_name, invited_count)
+VALUES (
+  'cccccccc-3333-3333-3333-333333333333',
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+  'M2A.2 targeting preservation party',
+  2
+)
+ON CONFLICT (id) DO NOTHING;
 
--- Grant access so SECURITY DEFINER functions can query it (SELECT only — no UPDATE needed)
-GRANT SELECT ON public.invitation_event_targetings TO trusted_function_owner;
+INSERT INTO public.invitations (id, wedding_id, invitation_party_id)
+VALUES (
+  'dddddddd-dddd-dddd-dddd-dddddddddddd',
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+  'cccccccc-3333-3333-3333-333333333333'
+)
+ON CONFLICT (id) DO NOTHING;
 
 -- Insert targeting row for event 5555 (targeting exists before removal)
 INSERT INTO public.invitation_event_targetings (wedding_id, invitation_id, wedding_event_id)

@@ -2,7 +2,7 @@
 
 ## Giai đoạn Hiện tại
 
-Implementation -> M2B.3: Excel Guest Import — **IN REVIEW** (TOP-GUE-004 implemented; clean reset pass; DB 193/193 pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 192 info)
+Implementation -> M3: Invitation / Credential Foundation — **IN REVIEW** (Invitation schema, targeting, lifecycle, TOP-INV-001 credential regeneration, organizer UI, and tests implemented; clean reset pass; DB 232/232 pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 191 info)
 
 ## Tình trạng Dự án
 
@@ -87,7 +87,8 @@ Tập trung vào các mảng cốt lõi:
 *   **M2A.2 Date Change & Removal Previews:** 🟢 **Đã hoàn thành (Complete / Approved)** — IMPL-CONFLICT-006 resolved, 116 tests pass — Chi tiết tại [15-m2a2-event-impact-review.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/15-m2a2-event-impact-review.md)
 *   **M2B.1 Guest Core Foundation:** 🟢 **Đã phê duyệt (Approved)** — 139 tests pass, transition constraints verified, Flutter tests pass — Chi tiết tại [16-m2b1-guest-foundation.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/16-m2b1-guest-foundation.md)
 *   **M2B.2 Guest Impact Operations:** 🟢 **Đã phê duyệt (Approved)** — IMPL-CONFLICT-010 and IMPL-CONFLICT-011 resolved; DB 166/166 pass; Flutter tests pass; Flutter analyze has 0 errors / 0 warnings and info-level diagnostics tracked as analyzer debt — Chi tiết tại [17-m2b2-guest-impact-operations.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/17-m2b2-guest-impact-operations.md)
-*   **M2B.3 Excel Guest Import:** 🟡 **Đang đánh giá (In Review)** — TOP-GUE-004 local XLSX parsing, Preview, trusted Confirm Import, durable receipt retry, server revalidation, and tests implemented; DB 193/193 pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 192 info — Chi tiết tại [18-m2b3-excel-import.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/18-m2b3-excel-import.md)
+*   **M2B.3 Excel Guest Import:** 🟢 **Đã phê duyệt (Approved)** — TOP-GUE-004 local XLSX parsing, Preview, trusted Confirm Import, durable receipt retry, server revalidation, and tests implemented; DB 193/193 pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 192 info — Chi tiết tại [18-m2b3-excel-import.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/18-m2b3-excel-import.md)
+*   **M3 Invitation / Credential Foundation:** 🟡 **Đang đánh giá (In Review)** — Invitation schema, Event targeting, lifecycle triggers, DEC-B-002 credential format, TOP-INV-001 credential regeneration, active credential invariant, organizer UI, and tests implemented; DB 232/232 pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 191 info — Chi tiết tại [19-m3-invitation-credential-foundation.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/19-m3-invitation-credential-foundation.md)
 
 ## Gap Register
 
@@ -105,8 +106,8 @@ Tập trung vào các mảng cốt lõi:
 
 ## Giai đoạn Tiếp theo
 
-Implementation -> Product Owner review for M2B.3. M3: Invitation & RSVP / Credentials only after approval.
+Implementation -> Product Owner review for M3 Invitation / Credential Foundation. Class D public resolve, Guest Web, RSVP, VietQR, Finance, and Media remain outside the current checkpoint.
 
 ## Hành động Khuyên dùng tiếp theo
 
-Product Owner review M2B.3 Excel Guest Import. Recommendation: M2B.3 complete. Không bắt đầu Invitation Credential, Guest Web, RSVP, Finance, Media hoặc Wedding Delete trước khi M2B.3 được phê duyệt.
+Product Owner review M3 Invitation / Credential Foundation. Recommendation: M3 complete if final clean reset, regression, commit, and push gates pass. Không bắt đầu Class D public resolve, Guest Web, RSVP, VietQR, Finance, Media hoặc Wedding Delete trước khi M3 được phê duyệt.

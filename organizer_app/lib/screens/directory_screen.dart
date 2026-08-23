@@ -9,6 +9,7 @@ import 'party_create_edit_screen.dart';
 import 'group_management_screen.dart';
 import 'guest_merge_screen.dart';
 import 'guest_import_screen.dart';
+import 'invitation_management_screen.dart';
 
 class DirectoryScreen extends StatefulWidget {
   final String weddingId;
@@ -92,6 +93,25 @@ class _DirectoryScreenState extends State<DirectoryScreen>
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
+          IconButton(
+            icon: const Icon(
+              Icons.mark_email_read_rounded,
+              color: Color(0xFF00C6FF),
+            ),
+            tooltip: 'Quản lý thiệp mời',
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => InvitationManagementScreen(
+                    weddingId: widget.weddingId,
+                    parties: _parties,
+                    guests: _guests,
+                  ),
+                ),
+              );
+              _loadData();
+            },
+          ),
           IconButton(
             icon: const Icon(
               Icons.upload_file_rounded,
