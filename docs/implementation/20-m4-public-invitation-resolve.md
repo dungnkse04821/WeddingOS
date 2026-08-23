@@ -20,7 +20,9 @@ The Edge Function:
 * sets `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, and `X-Content-Type-Options: nosniff`;
 * uses an explicit origin allowlist from `GUEST_WEB_ALLOWED_ORIGINS`.
 
-Local Supabase routing exposes the function as `/functions/v1/invitation-resolve`; production routing should map this function to the approved `/v1/invitation/resolve` public API shape.
+Local Supabase routing exposes the function as `/functions/v1/invitation-resolve`.
+
+The canonical product/API contract remains `POST /v1/invitation/resolve`. Production canonical-route proxy mapping to that path has not been deployed or verified in this local checkpoint.
 
 ## B. Token Handling
 
@@ -42,7 +44,9 @@ The raw token remains the M3 format:
 
 ## C. Resolve Lookup
 
-Added `api_v1.resolve_public_invitation(text, varchar, integer)` as the internal database resolve primitive. The function is `SECURITY DEFINER`, owned by `trusted_function_owner`, and executable only by `service_role`.
+Added `internal.resolve_public_invitation(text, varchar, integer)` as the server-only database resolve primitive. The function is `SECURITY DEFINER`, owned by `trusted_function_owner`, and executable only by `service_role`.
+
+This resolves `IMPL-CONFLICT-012`: the Class-D DB helper is not an Organizer Class-C client API and is no longer placed in `api_v1`. Supabase PostgREST routing is configured to expose the `internal` schema so the Edge Function can call the helper with the service-role capability, but `PUBLIC`, `anon`, and `authenticated` have no schema usage or function execute grant.
 
 Resolve uses:
 
@@ -113,7 +117,25 @@ DEC-B-004 is closed for MVP with a DB-backed fixed-window rate limiter:
 * public failure: `RATE_LIMITED`;
 * response header: `Retry-After`.
 
-The limiter does not persist raw invitation tokens or raw IP/network signals. It is intentionally simple and free-tier friendly. It is not a bot-proof WAF and does not implement long temporary bans.
+Network signal authority:
+
+* preferred runtime header: `cf-connecting-ip`, treated as trustworthy only when supplied/overwritten by the hosting proxy;
+* fallback runtime header: first entry in `x-forwarded-for`, treated as trustworthy only within the Supabase/Kong/proxy model where the proxy controls that header chain;
+* local or unknown runtime fallback: `unknown-network`.
+
+The implementation does not claim a reliable client IP when provider metadata is absent or when a direct local request can spoof headers. In that case, the deterministic fallback safely groups requests rather than inventing confidence.
+
+The limiter does not persist raw invitation tokens, raw credential hashes, auth secrets, or raw IP/network signals. It is intentionally simple and free-tier friendly. It is not a bot-proof WAF and does not implement long temporary bans.
+
+The limiter fails closed at the public boundary: if the internal RPC or limiter infrastructure fails, the Edge Function returns a generic temporary error rather than bypassing throttling and resolving Invitation content.
+
+Retention:
+
+* each trusted limiter execution opportunistically deletes up to 100 expired rows;
+* expiration threshold is ten fixed windows, currently about 10 minutes for the 60-second window;
+* no cron, scheduler, or distributed background job is introduced for MVP.
+
+`IMPL-GAP-006` is resolved by the documented authority model, persistence inventory, grant matrix, retention model, and direct negative tests.
 
 ## H. Guest Web Shell
 
@@ -146,12 +168,18 @@ Production must provide the deployed Guest Web origin through `GUEST_WEB_ALLOWED
 
 Database tests verify:
 
+* `api_v1.resolve_public_invitation` does not exist;
+* only `service_role` can execute `internal.resolve_public_invitation`;
+* anon cannot directly invoke the Class-D DB helper;
+* authenticated organizer cannot directly invoke the Class-D DB helper;
+* authenticated outsider cannot directly invoke the Class-D DB helper;
 * anon cannot select credential rows;
 * anon cannot select Invitation rows;
 * anon cannot select InvitationParty rows;
 * anon cannot select Guest rows;
 * anon cannot select WeddingEvent rows;
 * anon cannot select WeddingMember rows;
+* anon/authenticated cannot access or reset limiter persistence;
 * resolve returns only the sanitized DTO;
 * unavailable token cases are enumeration-resistant at the public contract level.
 
@@ -175,7 +203,7 @@ Database:
 * `npx supabase db reset` — PASS during implementation;
 * `npx supabase test db` — PASS;
 * files: 8;
-* assertions: 270.
+* assertions: 286.
 
 Guest Web:
 
@@ -183,6 +211,8 @@ Guest Web:
 * `npm run lint` — PASS;
 * `npm run build` — PASS;
 * measured build time: 2582.61 ms.
+
+The measured 2582.61 ms is the local npm production build duration, not a 4G page-load measurement. The Guest Web `<3s on 4G` performance requirement remains an NFR target and is not yet verified by staging or real-network measurement.
 
 Edge Function:
 
@@ -213,14 +243,39 @@ Audit findings:
 Implementation-time fixes:
 
 * changed the M3 lifecycle trigger from `SECURITY DEFINER` to `SECURITY INVOKER` so trusted view tracking can be distinguished from ordinary client writes by `current_user`;
+* moved the Class-D DB bridge from `api_v1` to `internal`;
+* added bounded opportunistic cleanup for expired rate-limit rows;
 * aligned ARCHIVED guest-link behavior to the M4 checkpoint brief;
 * kept malformed and unknown token failures generic.
 
 ## O. IMPL Gaps / Conflicts
 
-No new IMPL conflict was recorded.
+`IMPL-CONFLICT-012` — Class-D server helper placed in organizer `api_v1` schema — **RESOLVED**.
+
+Resolution: moved the bridge to `internal.resolve_public_invitation`, kept it server/service-only, revoked `PUBLIC`/`anon`/`authenticated`, and updated Edge to call the internal schema through service-role PostgREST profile headers. This does not expand the approved 31 Organizer Class-C client-callable surfaces.
+
+`IMPL-GAP-006` — DEC-B-004 limiter authority/persistence evidence — **RESOLVED**.
+
+Evidence is recorded in Sections G and J and covered by Batch-08 tests.
 
 DEC-B-004 is resolved by the fixed-window Class-D rate limiter documented above.
+
+`IMPL-AMEND-001` — Class-D rate limiter technical persistence — **RESOLVED / RECORDED**.
+
+Batch-08 introduces `private.class_d_rate_limits` as technical infrastructure only. It does not change the approved 17 business-table inventory and does not become a Wedding domain aggregate.
+
+Persistence inventory:
+
+* schema: `private`;
+* table: `class_d_rate_limits`;
+* columns: `limiter_key`, `window_start`, `request_count`, `updated_at`;
+* primary key: `limiter_key`;
+* index: `idx_class_d_rate_limits_window_start`;
+* owner: `trusted_function_owner`;
+* write authority: trusted limiter function under `trusted_function_owner`;
+* read authority: trusted owner/test owner only, no direct client access;
+* stored identifiers: non-reversible limiter keys such as `D-INV-001:ip:<sha256>`;
+* retention: bounded opportunistic cleanup during limiter execution.
 
 ## P. Remaining Blockers
 

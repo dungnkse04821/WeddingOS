@@ -19,6 +19,13 @@ CREATE TABLE private.class_d_rate_limits (
   updated_at   timestamptz  NOT NULL DEFAULT now()
 );
 
+CREATE INDEX idx_class_d_rate_limits_window_start
+  ON private.class_d_rate_limits (window_start);
+
+ALTER TABLE private.class_d_rate_limits OWNER TO trusted_function_owner;
+REVOKE ALL ON private.class_d_rate_limits FROM PUBLIC;
+REVOKE ALL ON private.class_d_rate_limits FROM anon;
+REVOKE ALL ON private.class_d_rate_limits FROM authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON private.class_d_rate_limits TO trusted_function_owner;
 
 CREATE OR REPLACE FUNCTION private.check_class_d_rate_limit(
@@ -39,6 +46,18 @@ BEGIN
   IF p_limiter_key IS NULL OR trim(p_limiter_key) = '' THEN
     p_limiter_key := 'D-INV-001:unknown-network';
   END IF;
+
+  WITH stale_rows AS (
+    SELECT ctid
+    FROM private.class_d_rate_limits
+    WHERE window_start <= v_now - make_interval(secs => GREATEST(p_window_seconds, 60) * 10)
+      AND limiter_key <> p_limiter_key
+    ORDER BY window_start ASC
+    LIMIT 100
+  )
+  DELETE FROM private.class_d_rate_limits r
+  USING stale_rows s
+  WHERE r.ctid = s.ctid;
 
   INSERT INTO private.class_d_rate_limits (limiter_key, window_start, request_count, updated_at)
   VALUES (p_limiter_key, v_now, 1, v_now)
@@ -79,7 +98,7 @@ GRANT EXECUTE ON FUNCTION private.check_class_d_rate_limit(varchar, integer, int
 -- SECTION 2: D-INV-001 INTERNAL RESOLVE PRIMITIVE
 -- ---------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION api_v1.resolve_public_invitation(
+CREATE OR REPLACE FUNCTION internal.resolve_public_invitation(
   p_raw_token text,
   p_limiter_key varchar(128) DEFAULT NULL,
   p_rate_limit_threshold integer DEFAULT 30
@@ -211,6 +230,13 @@ BEGIN
 END;
 $$;
 
-REVOKE EXECUTE ON FUNCTION api_v1.resolve_public_invitation(text, varchar, integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api_v1.resolve_public_invitation(text, varchar, integer) TO service_role;
-ALTER FUNCTION api_v1.resolve_public_invitation(text, varchar, integer) OWNER TO trusted_function_owner;
+REVOKE ALL ON SCHEMA internal FROM PUBLIC;
+REVOKE ALL ON SCHEMA internal FROM anon;
+REVOKE ALL ON SCHEMA internal FROM authenticated;
+GRANT USAGE ON SCHEMA internal TO service_role;
+
+REVOKE EXECUTE ON FUNCTION internal.resolve_public_invitation(text, varchar, integer) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION internal.resolve_public_invitation(text, varchar, integer) FROM anon;
+REVOKE EXECUTE ON FUNCTION internal.resolve_public_invitation(text, varchar, integer) FROM authenticated;
+GRANT EXECUTE ON FUNCTION internal.resolve_public_invitation(text, varchar, integer) TO service_role;
+ALTER FUNCTION internal.resolve_public_invitation(text, varchar, integer) OWNER TO trusted_function_owner;

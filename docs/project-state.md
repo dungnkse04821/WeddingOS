@@ -2,7 +2,7 @@
 
 ## Giai đoạn Hiện tại
 
-Implementation -> M4: Public Guest Invitation Resolve — **IN REVIEW** (D-INV-001 resolve primitive, Edge Function, Guest Web shell, token fragment handling, view tracking, Class-D abuse control, and tests implemented; DB 270/270 pass; Guest Web tests/lint/build pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 191 info)
+Implementation -> M4: Public Guest Invitation Resolve — **IN REVIEW** (D-INV-001 Edge boundary, internal server-only DB helper, Guest Web shell, token fragment handling, view tracking, Class-D abuse control, and closure tests implemented; DB 286/286 pass; Guest Web tests/lint/build pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 191 info)
 
 ## Tình trạng Dự án
 
@@ -89,11 +89,14 @@ Tập trung vào các mảng cốt lõi:
 *   **M2B.2 Guest Impact Operations:** 🟢 **Đã phê duyệt (Approved)** — IMPL-CONFLICT-010 and IMPL-CONFLICT-011 resolved; DB 166/166 pass; Flutter tests pass; Flutter analyze has 0 errors / 0 warnings and info-level diagnostics tracked as analyzer debt — Chi tiết tại [17-m2b2-guest-impact-operations.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/17-m2b2-guest-impact-operations.md)
 *   **M2B.3 Excel Guest Import:** 🟢 **Đã phê duyệt (Approved)** — TOP-GUE-004 local XLSX parsing, Preview, trusted Confirm Import, durable receipt retry, server revalidation, and tests implemented; DB 193/193 pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 192 info — Chi tiết tại [18-m2b3-excel-import.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/18-m2b3-excel-import.md)
 *   **M3 Invitation / Credential Foundation:** 🟢 **Đã phê duyệt (Approved)** — Invitation schema, Event targeting, lifecycle triggers, DEC-B-002 credential format, TOP-INV-001 credential regeneration, active credential invariant, organizer UI, and tests implemented; DB 232/232 pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 191 info — Chi tiết tại [19-m3-invitation-credential-foundation.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/19-m3-invitation-credential-foundation.md)
-*   **M4 Public Guest Invitation Resolve:** 🟡 **Đang đánh giá (In Review)** — D-INV-001 public resolve, Guest Web shell, URL fragment token extraction/scrubbing, sanitized DTO, view tracking, Edge Function, and DEC-B-004 Class-D rate limiting implemented; DB 270/270 pass; Guest Web tests/lint/build pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 191 info — Chi tiết tại [20-m4-public-invitation-resolve.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/20-m4-public-invitation-resolve.md)
+*   **M4 Public Guest Invitation Resolve:** 🟡 **Đang đánh giá (In Review)** — D-INV-001 public resolve, Guest Web shell, URL fragment token extraction/scrubbing, sanitized DTO, view tracking, Edge Function, internal server-only DB helper boundary, and DEC-B-004 Class-D rate limiting implemented; IMPL-CONFLICT-012, IMPL-GAP-006, and IMPL-AMEND-001 resolved/recorded; DB 286/286 pass; Guest Web tests/lint/build pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 191 info — Chi tiết tại [20-m4-public-invitation-resolve.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/20-m4-public-invitation-resolve.md)
 
 ## Gap Register
 
 *   **`TECH-DEBT-001` (Legacy M2A.2 MD5 stale-impact fingerprints):** 🟡 **Open / Non-blocking** — M2A.2 MD5 fingerprints are stale-impact change detectors only; they are not credentials, authorization tokens, idempotency tokens, replay proof, or authenticity proof. Do not describe them as secure.
+*   **`IMPL-CONFLICT-012` (Class-D DB helper boundary):** 🟢 **Resolved** — D-INV-001 DB bridge moved from organizer `api_v1` to server-only `internal.resolve_public_invitation`; only `service_role` has EXECUTE.
+*   **`IMPL-GAP-006` (DEC-B-004 limiter authority/persistence evidence):** 🟢 **Resolved** — limiter authority, network signal assumptions, persistence object, grants, retention, and negative tests documented.
+*   **`IMPL-AMEND-001` (Class-D rate limiter technical persistence):** 🟢 **Recorded** — `private.class_d_rate_limits` is technical infrastructure for DEC-B-004 only; it does not change the approved 17 business-table inventory and is not a domain aggregate.
 
 ## Các câu hỏi mở cần Product Owner làm rõ về Kiến trúc
 

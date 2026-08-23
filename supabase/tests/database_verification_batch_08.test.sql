@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(38); -- 38 assertions for BATCH-08 (Public Invitation Resolve)
+SELECT plan(54); -- 54 assertions for BATCH-08 (Public Invitation Resolve)
 
 -- ===========================================================================
 -- TEST SETUP
@@ -11,6 +11,17 @@ VALUES
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Archived Wedding', 600000000, 'TUY_CHON', '2026-12-25', 'ARCHIVED', NULL, NULL),
   ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'Deleting Wedding', 600000000, 'TUY_CHON', '2026-12-26', 'DELETING', NULL, NULL)
 ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO auth.users (id, email)
+VALUES
+  ('d1000000-0000-0000-0000-000000000001', 'm4.organizer@example.com'),
+  ('d1000000-0000-0000-0000-000000000002', 'm4.outsider@example.com')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.wedding_members (wedding_id, user_id, display_name, profile_email, role, status)
+VALUES
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'd1000000-0000-0000-0000-000000000001', 'M4 Organizer', 'm4.organizer@example.com', 'OWNER', 'ACTIVE')
+ON CONFLICT (wedding_id, user_id) DO NOTHING;
 
 INSERT INTO public.wedding_events (id, wedding_id, name, exact_date, start_time, location, map_link, lifecycle_status, is_main_event)
 VALUES
@@ -83,18 +94,18 @@ FROM m4_tokens;
 CREATE TEMP TABLE m4_results AS
 SELECT
   label,
-  api_v1.resolve_public_invitation(raw_token, 'test-' || label, 30) AS result
+  internal.resolve_public_invitation(raw_token, 'test-' || label, 30) AS result
 FROM m4_tokens
 WHERE label <> 'revoked';
 
 INSERT INTO m4_results (label, result)
-SELECT 'revoked', api_v1.resolve_public_invitation(raw_token, 'test-revoked', 30)
+SELECT 'revoked', internal.resolve_public_invitation(raw_token, 'test-revoked', 30)
 FROM m4_tokens WHERE label = 'revoked';
 
 INSERT INTO m4_results (label, result)
 VALUES
-  ('wrong', api_v1.resolve_public_invitation('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk012350', 'test-wrong', 30)),
-  ('malformed', api_v1.resolve_public_invitation('not-a-valid-token', 'test-malformed', 30));
+  ('wrong', internal.resolve_public_invitation('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk012350', 'test-wrong', 30)),
+  ('malformed', internal.resolve_public_invitation('not-a-valid-token', 'test-malformed', 30));
 
 -- ===========================================================================
 -- 1. Valid resolve and sanitized DTO
@@ -214,7 +225,7 @@ WHERE id = 'a1000000-0000-0000-0000-000000000001';
 SELECT pg_sleep(0.02);
 
 SELECT is(
-  (SELECT (api_v1.resolve_public_invitation(raw_token, 'test-ready-repeat', 30) ->> 'ok')::boolean FROM m4_tokens WHERE label = 'ready'),
+  (SELECT (internal.resolve_public_invitation(raw_token, 'test-ready-repeat', 30) ->> 'ok')::boolean FROM m4_tokens WHERE label = 'ready'),
   true,
   'Resolve retry: repeated valid resolve remains successful.'
 );
@@ -278,19 +289,19 @@ SELECT is(
 );
 
 SELECT is(
-  (SELECT api_v1.resolve_public_invitation(raw_token, 'limited-key', 2) ->> 'error_code' FROM m4_tokens WHERE label = 'ready'),
+  (SELECT internal.resolve_public_invitation(raw_token, 'limited-key', 2) ->> 'error_code' FROM m4_tokens WHERE label = 'ready'),
   NULL,
   'Rate limit: first request under threshold is not rate limited.'
 );
 
 SELECT is(
-  (SELECT api_v1.resolve_public_invitation(raw_token, 'limited-key', 2) ->> 'error_code' FROM m4_tokens WHERE label = 'ready'),
+  (SELECT internal.resolve_public_invitation(raw_token, 'limited-key', 2) ->> 'error_code' FROM m4_tokens WHERE label = 'ready'),
   NULL,
   'Rate limit: second request at threshold is not rate limited.'
 );
 
 SELECT is(
-  (SELECT api_v1.resolve_public_invitation(raw_token, 'limited-key', 2) ->> 'error_code' FROM m4_tokens WHERE label = 'ready'),
+  (SELECT internal.resolve_public_invitation(raw_token, 'limited-key', 2) ->> 'error_code' FROM m4_tokens WHERE label = 'ready'),
   'RATE_LIMITED',
   'Rate limit: excess request returns safe RATE_LIMITED response.'
 );
@@ -301,8 +312,39 @@ SELECT is(
   'Rate limit privacy: limiter table does not persist raw token text.'
 );
 
+UPDATE private.class_d_rate_limits
+SET window_start = clock_timestamp() - interval '61 seconds'
+WHERE limiter_key = 'limited-key';
+
+SELECT is(
+  (SELECT internal.resolve_public_invitation(raw_token, 'limited-key', 2) ->> 'error_code' FROM m4_tokens WHERE label = 'ready'),
+  NULL,
+  'Rate limit: a new fixed window allows requests again.'
+);
+
+INSERT INTO private.class_d_rate_limits (limiter_key, window_start, request_count, updated_at)
+VALUES
+  ('stale-cleanup-1', clock_timestamp() - interval '11 minutes', 5, clock_timestamp() - interval '11 minutes'),
+  ('stale-cleanup-2', clock_timestamp() - interval '11 minutes', 5, clock_timestamp() - interval '11 minutes')
+ON CONFLICT (limiter_key) DO UPDATE
+SET window_start = EXCLUDED.window_start,
+    request_count = EXCLUDED.request_count,
+    updated_at = EXCLUDED.updated_at;
+
+SELECT is(
+  (SELECT internal.resolve_public_invitation(raw_token, 'cleanup-key', 30) ->> 'error_code' FROM m4_tokens WHERE label = 'ready'),
+  NULL,
+  'Rate limit cleanup: resolve still succeeds while opportunistic cleanup runs.'
+);
+
+SELECT is(
+  (SELECT count(*)::integer FROM private.class_d_rate_limits WHERE limiter_key LIKE 'stale-cleanup-%'),
+  0,
+  'Rate limit cleanup: expired fixed-window rows are opportunistically removed.'
+);
+
 -- ===========================================================================
--- 4. Token hash and no anon direct table access
+-- 4. Token hash and Class-D helper boundary
 -- ===========================================================================
 
 SELECT is(
@@ -314,9 +356,55 @@ SELECT is(
   'Token hash lookup: SHA-256(raw token) matches active token_hash.'
 );
 
+SELECT is(
+  to_regprocedure('api_v1.resolve_public_invitation(text, character varying, integer)') IS NULL,
+  true,
+  'IMPL-CONFLICT-012: resolve helper is not present in organizer api_v1 schema.'
+);
+
+SELECT is(
+  has_function_privilege('anon', 'internal.resolve_public_invitation(text, character varying, integer)', 'EXECUTE'),
+  false,
+  'Class-D helper grants: anon has no EXECUTE privilege.'
+);
+
+SELECT is(
+  has_function_privilege('authenticated', 'internal.resolve_public_invitation(text, character varying, integer)', 'EXECUTE'),
+  false,
+  'Class-D helper grants: authenticated has no EXECUTE privilege.'
+);
+
+SELECT is(
+  has_function_privilege('service_role', 'internal.resolve_public_invitation(text, character varying, integer)', 'EXECUTE'),
+  true,
+  'Class-D helper grants: service_role has the narrow required EXECUTE privilege.'
+);
+
+SELECT is(
+  has_function_privilege('public', 'internal.resolve_public_invitation(text, character varying, integer)', 'EXECUTE'),
+  false,
+  'Class-D helper grants: PUBLIC execute is absent.'
+);
+
+RESET ROLE;
+SET ROLE service_role;
+
+SELECT is(
+  (internal.resolve_public_invitation('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk012345', 'service-role-call', 30) ->> 'ok')::boolean,
+  true,
+  'Class-D helper boundary: service_role can invoke the server-only bridge.'
+);
+
 RESET ROLE;
 SET ROLE anon;
 SET request.jwt.claims = '{}';
+
+SELECT throws_ok(
+  $$ SELECT internal.resolve_public_invitation('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk012345', 'client-chosen-key', 30); $$,
+  '42501',
+  NULL,
+  'Class-D helper boundary: anon cannot directly invoke the server-only bridge.'
+);
 
 SELECT throws_ok($$ SELECT * FROM public.invitation_credentials LIMIT 1; $$, '42501', NULL, 'Security: anon cannot SELECT invitation_credentials.');
 SELECT throws_ok($$ SELECT * FROM public.invitations LIMIT 1; $$, '42501', NULL, 'Security: anon cannot SELECT invitations.');
@@ -324,6 +412,53 @@ SELECT throws_ok($$ SELECT * FROM public.invitation_parties LIMIT 1; $$, '42501'
 SELECT throws_ok($$ SELECT * FROM public.guests LIMIT 1; $$, '42501', NULL, 'Security: anon cannot SELECT guests.');
 SELECT throws_ok($$ SELECT * FROM public.wedding_events LIMIT 1; $$, '42501', NULL, 'Security: anon cannot SELECT wedding_events.');
 SELECT throws_ok($$ SELECT * FROM public.wedding_members LIMIT 1; $$, '42501', NULL, 'Security: anon cannot SELECT wedding_members.');
+SELECT throws_ok($$ SELECT * FROM private.class_d_rate_limits LIMIT 1; $$, '42501', NULL, 'Security: anon cannot SELECT limiter persistence.');
+
+RESET ROLE;
+SET ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub": "d1000000-0000-0000-0000-000000000001"}', true);
+
+SELECT throws_ok(
+  $$ SELECT internal.resolve_public_invitation('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk012345', 'organizer-chosen-key', 30); $$,
+  '42501',
+  NULL,
+  'Class-D helper boundary: authenticated organizer cannot directly invoke the server-only bridge.'
+);
+
+SELECT throws_ok(
+  $$ UPDATE private.class_d_rate_limits SET request_count = 0 WHERE limiter_key = 'limited-key'; $$,
+  '42501',
+  NULL,
+  'Rate limiter authority: authenticated organizer cannot reset limiter counters.'
+);
+
+SELECT throws_ok(
+  $$ DELETE FROM private.class_d_rate_limits WHERE limiter_key = 'limited-key'; $$,
+  '42501',
+  NULL,
+  'Rate limiter authority: authenticated organizer cannot delete limiter state.'
+);
+
+RESET ROLE;
+SET ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub": "d1000000-0000-0000-0000-000000000002"}', true);
+
+SELECT throws_ok(
+  $$ SELECT internal.resolve_public_invitation('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk012345', 'outsider-chosen-key', 30); $$,
+  '42501',
+  NULL,
+  'Class-D helper boundary: authenticated outsider cannot directly invoke the server-only bridge.'
+);
+
+RESET ROLE;
+
+SELECT is(
+  (SELECT count(*)::integer
+   FROM private.class_d_rate_limits
+   WHERE limiter_key IN ('client-chosen-key', 'organizer-chosen-key', 'outsider-chosen-key')),
+  0,
+  'Rate limiter authority: denied clients cannot choose or persist limiter keys.'
+);
 
 RESET ROLE;
 SELECT * FROM finish();
