@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import App from './App';
@@ -7,7 +7,7 @@ const token = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk012345';
 
 const invitation = {
   wedding: {
-    name: 'Active Wedding',
+      name: 'Active Wedding',
     timezone: 'Asia/Ho_Chi_Minh',
     rsvp_cutoff_date: null,
     public_contact_phone: '0900000000',
@@ -18,9 +18,14 @@ const invitation = {
     invited_count: 4,
   },
   status: 'READY',
-  can_submit_rsvp: false,
+  can_submit_rsvp: true,
+  rsvp: {
+    summary: 'PENDING', companion_names: null, dietary_info: null, guest_message: null, note: null,
+    event_responses: [], warnings: [],
+  },
   events: [
     {
+      id: 'e1000000-0000-4000-8000-000000000001',
       name: 'Exact Event',
       date_precision: 'EXACT',
       exact_date: '2026-12-18',
@@ -32,6 +37,7 @@ const invitation = {
       rsvp_ready: true,
     },
     {
+      id: 'e1000000-0000-4000-8000-000000000002',
       name: 'Expected Month Event',
       date_precision: 'EXPECTED_MONTH',
       exact_date: null,
@@ -62,7 +68,7 @@ describe('Guest invitation shell', () => {
     expect(await screen.findByText('Gia đình bác Tư')).toBeInTheDocument();
     expect(screen.getByText('Ngày chính xác: 2026-12-18')).toBeInTheDocument();
     expect(screen.getByText('Dự kiến: Tháng 12/2026')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'RSVP sẽ được mở sau' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Xác nhận tham dự' })).toBeEnabled();
     expect(window.location.hash).toBe('');
     expect(window.localStorage.length).toBe(0);
   });
@@ -88,5 +94,30 @@ describe('Guest invitation shell', () => {
     window.history.replaceState(null, '', `/#/invite/${token}`);
     render(<App />);
     expect(await screen.findByText('Tạm thời chưa tải được')).toBeInTheDocument();
+  });
+
+  it('submits only the changed RSVP event and shows the authoritative warning', async () => {
+    const updated = {
+      ...invitation.rsvp,
+      summary: 'PARTIAL',
+      event_responses: [{ event_id: invitation.events[0].id, response_status: 'ATTENDING', attending_count: 5 }],
+      warnings: ['RSVP_OVERCOUNT'],
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, invitation }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, can_submit_rsvp: true, rsvp: updated }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    window.history.replaceState(null, '', `/#/invite/${token}`);
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Xác nhận tham dự' }));
+    fireEvent.click(screen.getByLabelText('Tham dự'));
+    fireEvent.click(screen.getByRole('button', { name: 'Gửi phản hồi' }));
+
+    await screen.findByText('Trạng thái phản hồi: PARTIAL. Bạn có thể cập nhật từng sự kiện.');
+    const request = fetchMock.mock.calls[1][1] as { body: string };
+    const body = JSON.parse(request.body);
+    expect(body.responses).toEqual([{ event_id: invitation.events[0].id, response_status: 'ATTENDING', attending_count: 1 }]);
+    expect(screen.getByText('Thiệp được chuẩn bị cho 4 khách. Vui lòng để lại ghi chú nếu cần thêm người.')).toBeInTheDocument();
   });
 });

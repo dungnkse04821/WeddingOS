@@ -2,7 +2,7 @@
 
 ## Giai đoạn Hiện tại
 
-Implementation -> M4: Public Guest Invitation Resolve — **IN REVIEW** (D-INV-001 Edge boundary, hidden internal DB implementation, service-only `edge_api` PostgREST bridge, Guest Web shell, token fragment handling, view tracking, Class-D abuse control, and closure tests implemented; DB 306/306 pass; Guest Web tests/lint/build pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 191 info)
+Implementation -> M4.2: Public RSVP Submit — **IN PROGRESS** (M4 Public Guest Invitation Resolve is approved by Product Owner. D-RSV-001 will add current RSVP/EventResponse persistence, the Class-D server boundary, cutoff enforcement, and Guest Web RSVP form.)
 
 ## Tình trạng Dự án
 
@@ -89,7 +89,8 @@ Tập trung vào các mảng cốt lõi:
 *   **M2B.2 Guest Impact Operations:** 🟢 **Đã phê duyệt (Approved)** — IMPL-CONFLICT-010 and IMPL-CONFLICT-011 resolved; DB 166/166 pass; Flutter tests pass; Flutter analyze has 0 errors / 0 warnings and info-level diagnostics tracked as analyzer debt — Chi tiết tại [17-m2b2-guest-impact-operations.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/17-m2b2-guest-impact-operations.md)
 *   **M2B.3 Excel Guest Import:** 🟢 **Đã phê duyệt (Approved)** — TOP-GUE-004 local XLSX parsing, Preview, trusted Confirm Import, durable receipt retry, server revalidation, and tests implemented; DB 193/193 pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 192 info — Chi tiết tại [18-m2b3-excel-import.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/18-m2b3-excel-import.md)
 *   **M3 Invitation / Credential Foundation:** 🟢 **Đã phê duyệt (Approved)** — Invitation schema, Event targeting, lifecycle triggers, DEC-B-002 credential format, TOP-INV-001 credential regeneration, active credential invariant, organizer UI, and tests implemented; DB 232/232 pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 191 info — Chi tiết tại [19-m3-invitation-credential-foundation.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/19-m3-invitation-credential-foundation.md)
-*   **M4 Public Guest Invitation Resolve:** 🟡 **Đang đánh giá (In Review)** — D-INV-001 public resolve, Guest Web shell, URL fragment token extraction/scrubbing, sanitized DTO, view tracking, Edge Function, hidden internal DB implementation, service-only `edge_api` PostgREST bridge, and DEC-B-004 Class-D rate limiting implemented; IMPL-CONFLICT-012, IMPL-CONFLICT-013, IMPL-GAP-006, IMPL-AMEND-001, and IMPL-AMEND-002 resolved/recorded; DB 306/306 pass; Guest Web tests/lint/build pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 191 info — Chi tiết tại [20-m4-public-invitation-resolve.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/20-m4-public-invitation-resolve.md)
+*   **M4 Public Guest Invitation Resolve:** 🟢 **Đã phê duyệt (Approved)** — D-INV-001 public resolve, Guest Web shell, URL fragment token extraction/scrubbing, sanitized DTO, view tracking, Edge Function, hidden internal DB implementation, service-only `edge_api` PostgREST bridge, and DEC-B-004 Class-D rate limiting implemented; IMPL-CONFLICT-012, IMPL-CONFLICT-013, IMPL-GAP-006, IMPL-AMEND-001, and IMPL-AMEND-002 resolved/recorded; DB 306/306 pass; Guest Web tests/lint/build pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 191 info — Chi tiết tại [20-m4-public-invitation-resolve.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/20-m4-public-invitation-resolve.md)
+*   **M4.2 Public RSVP Submit:** 🟡 **Đang đánh giá giao hàng (Delivery Review)** — D-RSV-001 current RSVP/EventResponse schema, trusted Class-D Edge/`edge_api` bridge, Wedding-timezone cutoff, partial patch-by-event, RSVP limiter integration, and Guest Web form implemented; DB 343/343, canonical Guest Web tests/lint/build, local Edge smoke, and Flutter regression pass. Git checkpoint pending — Chi tiết tại [21-m4-2-public-rsvp-submit.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/21-m4-2-public-rsvp-submit.md)
 
 ## Gap Register
 
@@ -112,8 +113,8 @@ Tập trung vào các mảng cốt lõi:
 
 ## Giai đoạn Tiếp theo
 
-Implementation -> Product Owner review for M4 Public Guest Invitation Resolve. RSVP mutation, VietQR, Finance, Media, push/email/SMS, and additional organizer Invitation changes remain outside the current checkpoint.
+Implementation -> M4.2 Public RSVP Submit. VietQR, Finance, Media, push/email/SMS, organizer manual RSVP, and Wedding Delete remain outside the current checkpoint.
 
 ## Hành động Khuyên dùng tiếp theo
 
-Product Owner review M4 Public Guest Invitation Resolve after final clean reset, regression, commit, and push gates pass. Không bắt đầu RSVP mutation, VietQR, Finance, Media, push/email/SMS hoặc Wedding Delete trước khi M4 được phê duyệt.
+Implement and verify D-RSV-001 Public RSVP Submit, then stop for Product Owner review. Không bắt đầu VietQR, Finance, Media, push/email/SMS, organizer manual RSVP hoặc Wedding Delete.

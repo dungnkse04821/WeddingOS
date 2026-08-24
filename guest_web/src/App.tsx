@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react';
 
-import { resolveInvitation } from './api';
+import { resolveInvitation, submitRsvp } from './api';
 import { bootstrapInvitationToken, clearSessionToken } from './token';
-import type { PublicInvitationDto, PublicInvitationEventDto, ResolveState } from './types';
+import type { PublicInvitationDto, PublicInvitationEventDto, PublicRsvpDto, ResolveState } from './types';
 import './styles.css';
 
 export default function App() {
@@ -66,6 +66,8 @@ function StatusPanel({ title, body }: { title: string; body: string }) {
 
 function InvitationPage({ invitation }: { invitation: PublicInvitationDto }) {
   const readyCount = invitation.events.filter((event) => event.rsvp_ready).length;
+  const [rsvp, setRsvp] = useState(invitation.rsvp);
+  const [formOpen, setFormOpen] = useState(false);
 
   return (
     <article className="invitation-card">
@@ -84,10 +86,15 @@ function InvitationPage({ invitation }: { invitation: PublicInvitationDto }) {
         <h2>RSVP</h2>
         <p>
           {readyCount > 0
-            ? 'Sự kiện có ngày chính xác đã sẵn sàng cho bước RSVP trong giai đoạn tiếp theo.'
+            ? `Trạng thái phản hồi: ${rsvp.summary}. Bạn có thể cập nhật từng sự kiện.`
             : 'Thiệp hiện ở chế độ Save-the-Date. RSVP sẽ mở khi ngày chính xác được cập nhật.'}
         </p>
-        <button type="button" disabled>RSVP sẽ được mở sau</button>
+        {readyCount > 0 && invitation.can_submit_rsvp && !formOpen && (
+          <button type="button" onClick={() => setFormOpen(true)}>Xác nhận tham dự</button>
+        )}
+        {readyCount > 0 && !invitation.can_submit_rsvp && <p>Đã qua hạn chốt phản hồi. Thông tin hiện ở chế độ chỉ xem.</p>}
+        {formOpen && <RsvpForm invitation={invitation} onComplete={setRsvp} />}
+        {rsvp.warnings.includes('RSVP_OVERCOUNT') && <p role="status">Thiệp được chuẩn bị cho {invitation.party.invited_count} khách. Vui lòng để lại ghi chú nếu cần thêm người.</p>}
       </section>
 
       {(invitation.wedding.public_contact_phone || invitation.wedding.public_contact_email) && (
@@ -99,6 +106,72 @@ function InvitationPage({ invitation }: { invitation: PublicInvitationDto }) {
       )}
     </article>
   );
+}
+
+function RsvpForm({ invitation, onComplete }: { invitation: PublicInvitationDto; onComplete: Dispatch<SetStateAction<PublicRsvpDto>> }) {
+  const existing = new Map(invitation.rsvp.event_responses.map((response) => [response.event_id, response]));
+  const [responses, setResponses] = useState(existing);
+  const [changed, setChanged] = useState(new Set<string>());
+  const [message, setMessage] = useState(invitation.rsvp.guest_message ?? '');
+  const [dietary, setDietary] = useState(invitation.rsvp.dietary_info ?? '');
+  const [companions, setCompanions] = useState((invitation.rsvp.companion_names ?? []).join(', '));
+  const [note, setNote] = useState(invitation.rsvp.note ?? '');
+  const [messageTouched, setMessageTouched] = useState(false);
+  const [dietaryTouched, setDietaryTouched] = useState(false);
+  const [companionsTouched, setCompanionsTouched] = useState(false);
+  const [noteTouched, setNoteTouched] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'sending' | 'error'>('idle');
+  const [error, setError] = useState('');
+
+  const readyEvents = invitation.events.filter((event) => event.rsvp_ready);
+  const draftAttendingCount = [...responses.values()].reduce((total, response) => total + response.attending_count, 0);
+  const updateResponse = (event: PublicInvitationEventDto, responseStatus: 'ATTENDING' | 'NOT_ATTENDING', count: number) => {
+    setResponses((current) => new Map(current).set(event.id, { event_id: event.id, response_status: responseStatus, attending_count: responseStatus === 'ATTENDING' ? Math.max(1, count) : 0 }));
+    setChanged((current) => new Set(current).add(event.id));
+  };
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (changed.size === 0) return;
+    const token = bootstrapInvitationToken(window);
+    if (!token.ok) { setStatus('error'); setError('Liên kết không còn khả dụng.'); return; }
+    setStatus('sending'); setError('');
+    const optionalFields: Record<string, unknown> = {};
+    if (messageTouched) optionalFields.guest_message = message || null;
+    if (dietaryTouched) optionalFields.dietary_info = dietary || null;
+    if (companionsTouched) optionalFields.companion_names = companions.split(',').map((name) => name.trim()).filter(Boolean);
+    if (noteTouched) optionalFields.note = note || null;
+    const result = await submitRsvp(token.rawToken, {
+      responses: [...changed].map((eventId) => responses.get(eventId)).filter((value): value is NonNullable<typeof value> => Boolean(value)),
+      optional_fields: optionalFields,
+    });
+    if (result.ok) { onComplete(result.rsvp); return; }
+    setStatus('error');
+    setError(result.error_code === 'RSVP_CLOSED' ? 'Đã qua hạn chốt phản hồi.'
+      : result.error_code === 'RATE_LIMITED' ? 'Vui lòng đợi một lát rồi thử lại.'
+      : result.error_code === 'EVENT_NOT_AVAILABLE' ? 'Một sự kiện đã thay đổi. Hãy tải lại thiệp.'
+      : result.error_code === 'INVALID_RESPONSE' ? 'Vui lòng kiểm tra lại thông tin phản hồi.'
+      : 'Tạm thời chưa gửi được. Nội dung bạn đã điền vẫn được giữ lại để thử lại.');
+  };
+
+  return <form className="rsvp-form" onSubmit={submit}>
+    {readyEvents.map((event) => {
+      const response = responses.get(event.id);
+      const attending = response?.response_status === 'ATTENDING';
+      return <fieldset key={event.id} className="rsvp-event">
+        <legend>{event.name}</legend>
+        <label><input type="radio" name={event.id} checked={attending} onChange={() => updateResponse(event, 'ATTENDING', response?.attending_count ?? 1)} /> Tham dự</label>
+        <label><input type="radio" name={event.id} checked={response?.response_status === 'NOT_ATTENDING'} onChange={() => updateResponse(event, 'NOT_ATTENDING', 0)} /> Không tham dự</label>
+        {attending && <label>Số người <input aria-label={`Số người ${event.name}`} type="number" min="1" value={response.attending_count} onChange={(e) => updateResponse(event, 'ATTENDING', Number(e.target.value))} /></label>}
+      </fieldset>;
+    })}
+    <label>Lời chúc <textarea value={message} maxLength={1000} onChange={(e) => { setMessage(e.target.value); setMessageTouched(true); }} /></label>
+    <label>Lưu ý ăn kiêng <textarea value={dietary} maxLength={500} onChange={(e) => { setDietary(e.target.value); setDietaryTouched(true); }} /></label>
+    <label>Người đi cùng (cách nhau bằng dấu phẩy) <textarea value={companions} maxLength={2000} onChange={(e) => { setCompanions(e.target.value); setCompanionsTouched(true); }} /></label>
+    <label>Ghi chú <textarea value={note} maxLength={1000} onChange={(e) => { setNote(e.target.value); setNoteTouched(true); }} /></label>
+    {draftAttendingCount > invitation.party.invited_count && <p role="status">Thiệp được chuẩn bị cho {invitation.party.invited_count} khách. Bạn vẫn có thể gửi phản hồi và để lại ghi chú.</p>}
+    {error && <p role="alert">{error}</p>}
+    <button type="submit" disabled={changed.size === 0 || status === 'sending'}>{status === 'sending' ? 'Đang gửi...' : 'Gửi phản hồi'}</button>
+  </form>;
 }
 
 function EventCard({ event }: { event: PublicInvitationEventDto }) {

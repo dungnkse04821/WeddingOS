@@ -18,11 +18,13 @@ export type PublicInvitationDto = {
     invited_count: number;
   };
   status: 'READY' | 'MARKED_AS_SENT';
-  can_submit_rsvp: false;
+  can_submit_rsvp: boolean;
   events: PublicInvitationEventDto[];
+  rsvp: PublicRsvpDto;
 };
 
 export type PublicInvitationEventDto = {
+  id: string;
   name: string;
   date_precision: 'EXACT' | 'EXPECTED_MONTH';
   exact_date: string | null;
@@ -33,6 +35,24 @@ export type PublicInvitationEventDto = {
   map_link: string | null;
   rsvp_ready: boolean;
 };
+
+export type PublicRsvpDto = {
+  summary: 'PENDING' | 'PARTIAL' | 'RESPONDED';
+  companion_names: string[] | null;
+  dietary_info: string | null;
+  guest_message: string | null;
+  note: string | null;
+  event_responses: Array<{
+    event_id: string;
+    response_status: 'ATTENDING' | 'NOT_ATTENDING';
+    attending_count: number;
+  }>;
+  warnings: string[];
+};
+
+export type RsvpSubmitResponse =
+  | { ok: true; can_submit_rsvp: boolean; rsvp: PublicRsvpDto }
+  | { ok: false; error_code: 'INVITATION_UNAVAILABLE' | 'RSVP_CLOSED' | 'INVALID_RESPONSE' | 'EVENT_NOT_AVAILABLE' | 'RATE_LIMITED' | 'TEMPORARY_UNAVAILABLE' };
 
 export type ResolveResponse =
   | { ok: true; invitation: PublicInvitationDto }
