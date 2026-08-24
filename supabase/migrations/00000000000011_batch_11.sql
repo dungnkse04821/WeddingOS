@@ -915,7 +915,8 @@ SELECT
   COALESCE(u.upcoming_30d, 0)::numeric(15,2) AS upcoming_30d
 FROM public.weddings w
 LEFT JOIN wedding_metrics wm ON w.id = wm.wedding_id
-LEFT JOIN upcoming u ON w.id = u.wedding_id;
+LEFT JOIN upcoming u ON w.id = u.wedding_id
+WHERE security.is_wedding_owner(w.id);
 
 
 GRANT SELECT ON public.finance_summaries TO authenticated;

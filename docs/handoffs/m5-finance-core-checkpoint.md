@@ -1,7 +1,7 @@
 # M5 Finance Core Checkpoint
 
 1. **Current milestone + exact status**:
-   M5 Finance Core — INCOMPLETE / NEEDS FIXES.
+   M5 Finance Core - COMPLETE.
 
 2. **Implemented scope**:
    - DB Finance Core schema (budget_items, installments, payments, refunds).
