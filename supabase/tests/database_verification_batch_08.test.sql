@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(54); -- 54 assertions for BATCH-08 (Public Invitation Resolve)
+SELECT plan(74); -- 74 assertions for BATCH-08 (Public Invitation Resolve)
 
 -- ===========================================================================
 -- TEST SETUP
@@ -376,8 +376,8 @@ SELECT is(
 
 SELECT is(
   has_function_privilege('service_role', 'internal.resolve_public_invitation(text, character varying, integer)', 'EXECUTE'),
-  true,
-  'Class-D helper grants: service_role has the narrow required EXECUTE privilege.'
+  false,
+  'Provider boundary: service_role has no direct EXECUTE on hidden internal helper.'
 );
 
 SELECT is(
@@ -386,13 +386,37 @@ SELECT is(
   'Class-D helper grants: PUBLIC execute is absent.'
 );
 
+SELECT is(has_schema_privilege('anon', 'internal', 'USAGE'), false, 'Data API exposure: anon has no internal schema usage.');
+SELECT is(has_schema_privilege('authenticated', 'internal', 'USAGE'), false, 'Data API exposure: authenticated has no internal schema usage.');
+SELECT is(has_schema_privilege('service_role', 'internal', 'USAGE'), false, 'Data API exposure: service_role has no ordinary internal schema usage.');
+SELECT is(has_schema_privilege('anon', 'security', 'USAGE'), false, 'Data API exposure: anon has no security schema usage.');
+SELECT is(has_schema_privilege('authenticated', 'security', 'USAGE'), false, 'Data API exposure: authenticated has no security schema usage.');
+SELECT is(has_schema_privilege('service_role', 'security', 'USAGE'), false, 'Data API exposure: service_role has no ordinary security schema usage.');
+SELECT is(has_schema_privilege('anon', 'private', 'USAGE'), false, 'Data API exposure: anon has no private schema usage.');
+SELECT is(has_schema_privilege('authenticated', 'private', 'USAGE'), false, 'Data API exposure: authenticated has no private schema usage.');
+SELECT is(has_schema_privilege('service_role', 'private', 'USAGE'), false, 'Data API exposure: service_role has no ordinary private schema usage.');
+SELECT is(has_schema_privilege('anon', 'edge_api', 'USAGE'), false, 'Bridge schema: anon has no edge_api schema usage.');
+SELECT is(has_schema_privilege('authenticated', 'edge_api', 'USAGE'), false, 'Bridge schema: authenticated has no edge_api schema usage.');
+SELECT is(has_schema_privilege('service_role', 'edge_api', 'USAGE'), true, 'Bridge schema: service_role has edge_api schema usage.');
+SELECT is(has_function_privilege('anon', 'edge_api.resolve_public_invitation(text, character varying, integer)', 'EXECUTE'), false, 'Bridge grants: anon has no bridge EXECUTE.');
+SELECT is(has_function_privilege('authenticated', 'edge_api.resolve_public_invitation(text, character varying, integer)', 'EXECUTE'), false, 'Bridge grants: authenticated has no bridge EXECUTE.');
+SELECT is(has_function_privilege('service_role', 'edge_api.resolve_public_invitation(text, character varying, integer)', 'EXECUTE'), true, 'Bridge grants: service_role has narrow bridge EXECUTE.');
+SELECT is(has_function_privilege('public', 'edge_api.resolve_public_invitation(text, character varying, integer)', 'EXECUTE'), false, 'Bridge grants: PUBLIC execute is absent.');
+
 RESET ROLE;
 SET ROLE service_role;
 
+SELECT throws_ok(
+  $$ SELECT internal.resolve_public_invitation('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk012345', 'service-direct-internal', 30); $$,
+  '42501',
+  NULL,
+  'Provider boundary: service_role cannot directly invoke hidden internal helper.'
+);
+
 SELECT is(
-  (internal.resolve_public_invitation('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk012345', 'service-role-call', 30) ->> 'ok')::boolean,
+  (edge_api.resolve_public_invitation('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk012345', 'service-role-call', 30) ->> 'ok')::boolean,
   true,
-  'Class-D helper boundary: service_role can invoke the server-only bridge.'
+  'Service-only bridge: service_role can invoke the narrow D-INV-001 bridge.'
 );
 
 RESET ROLE;
@@ -403,7 +427,14 @@ SELECT throws_ok(
   $$ SELECT internal.resolve_public_invitation('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk012345', 'client-chosen-key', 30); $$,
   '42501',
   NULL,
-  'Class-D helper boundary: anon cannot directly invoke the server-only bridge.'
+  'Class-D helper boundary: anon cannot directly invoke hidden internal helper.'
+);
+
+SELECT throws_ok(
+  $$ SELECT edge_api.resolve_public_invitation('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk012345', 'client-chosen-key', 30); $$,
+  '42501',
+  NULL,
+  'Service-only bridge: anon cannot invoke the bridge.'
 );
 
 SELECT throws_ok($$ SELECT * FROM public.invitation_credentials LIMIT 1; $$, '42501', NULL, 'Security: anon cannot SELECT invitation_credentials.');
@@ -422,7 +453,14 @@ SELECT throws_ok(
   $$ SELECT internal.resolve_public_invitation('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk012345', 'organizer-chosen-key', 30); $$,
   '42501',
   NULL,
-  'Class-D helper boundary: authenticated organizer cannot directly invoke the server-only bridge.'
+  'Class-D helper boundary: authenticated organizer cannot directly invoke hidden internal helper.'
+);
+
+SELECT throws_ok(
+  $$ SELECT edge_api.resolve_public_invitation('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk012345', 'organizer-chosen-key', 30); $$,
+  '42501',
+  NULL,
+  'Service-only bridge: authenticated organizer cannot invoke the bridge.'
 );
 
 SELECT throws_ok(
@@ -447,7 +485,14 @@ SELECT throws_ok(
   $$ SELECT internal.resolve_public_invitation('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk012345', 'outsider-chosen-key', 30); $$,
   '42501',
   NULL,
-  'Class-D helper boundary: authenticated outsider cannot directly invoke the server-only bridge.'
+  'Class-D helper boundary: authenticated outsider cannot directly invoke hidden internal helper.'
+);
+
+SELECT throws_ok(
+  $$ SELECT edge_api.resolve_public_invitation('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk012345', 'outsider-chosen-key', 30); $$,
+  '42501',
+  NULL,
+  'Service-only bridge: authenticated outsider cannot invoke the bridge.'
 );
 
 RESET ROLE;

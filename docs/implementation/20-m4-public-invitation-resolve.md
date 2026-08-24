@@ -44,9 +44,11 @@ The raw token remains the M3 format:
 
 ## C. Resolve Lookup
 
-Added `internal.resolve_public_invitation(text, varchar, integer)` as the server-only database resolve primitive. The function is `SECURITY DEFINER`, owned by `trusted_function_owner`, and executable only by `service_role`.
+Added `internal.resolve_public_invitation(text, varchar, integer)` as the hidden server-only database resolve primitive. The function is `SECURITY DEFINER`, owned by `trusted_function_owner`, and is not directly executable by `PUBLIC`, `anon`, `authenticated`, or `service_role`.
 
-This resolves `IMPL-CONFLICT-012`: the Class-D DB helper is not an Organizer Class-C client API and is no longer placed in `api_v1`. Supabase PostgREST routing is configured to expose the `internal` schema so the Edge Function can call the helper with the service-role capability, but `PUBLIC`, `anon`, and `authenticated` have no schema usage or function execute grant.
+This resolves `IMPL-CONFLICT-012`: the Class-D DB helper is not an Organizer Class-C client API and is no longer placed in `api_v1`.
+
+This also resolves `IMPL-CONFLICT-013`: `internal` is no longer included in local `[api].schemas` and remains hidden from ordinary PostgREST/Data API schema profiles. Because the Supabase Edge runtime uses PostgREST RPC for this local implementation, Batch-08 adds a narrow service-only bridge: `edge_api.resolve_public_invitation(text, varchar, integer)`. The bridge is provider plumbing only, calls `internal.resolve_public_invitation`, grants EXECUTE only to `service_role`, and does not expand Organizer Class-C or public Class-D inventories.
 
 Resolve uses:
 
@@ -137,6 +139,14 @@ Retention:
 
 `IMPL-GAP-006` is resolved by the documented authority model, persistence inventory, grant matrix, retention model, and direct negative tests.
 
+Data API exposure:
+
+* pre-fix local `[api].schemas`: `public`, `api_v1`, `internal`;
+* final local `[api].schemas`: `public`, `api_v1`, `edge_api`;
+* repository staging config: no staging Supabase exposure config exists in this repository, so staging exposed schemas are not verifiable from repo evidence;
+* hidden WeddingOS schemas: `internal`, `security`, `private`;
+* provider bridge schema: `edge_api`, service-only, documented under `IMPL-AMEND-002`.
+
 ## H. Guest Web Shell
 
 Added a static React/Vite Guest Web app in `guest_web/`.
@@ -169,7 +179,9 @@ Production must provide the deployed Guest Web origin through `GUEST_WEB_ALLOWED
 Database tests verify:
 
 * `api_v1.resolve_public_invitation` does not exist;
-* only `service_role` can execute `internal.resolve_public_invitation`;
+* `internal`, `security`, and `private` have no anon/authenticated/service_role schema usage;
+* `service_role` cannot directly execute `internal.resolve_public_invitation`;
+* only `service_role` can execute `edge_api.resolve_public_invitation`;
 * anon cannot directly invoke the Class-D DB helper;
 * authenticated organizer cannot directly invoke the Class-D DB helper;
 * authenticated outsider cannot directly invoke the Class-D DB helper;
@@ -203,7 +215,7 @@ Database:
 * `npx supabase db reset` — PASS during implementation;
 * `npx supabase test db` — PASS;
 * files: 8;
-* assertions: 286.
+* assertions: 306.
 
 Guest Web:
 
@@ -243,7 +255,9 @@ Audit findings:
 Implementation-time fixes:
 
 * changed the M3 lifecycle trigger from `SECURITY DEFINER` to `SECURITY INVOKER` so trusted view tracking can be distinguished from ordinary client writes by `current_user`;
-* moved the Class-D DB bridge from `api_v1` to `internal`;
+* moved the Class-D implementation from `api_v1` to hidden `internal`;
+* removed `internal` from local PostgREST exposed schemas;
+* added narrow `edge_api.resolve_public_invitation` service-only provider bridge;
 * added bounded opportunistic cleanup for expired rate-limit rows;
 * aligned ARCHIVED guest-link behavior to the M4 checkpoint brief;
 * kept malformed and unknown token failures generic.
@@ -252,7 +266,11 @@ Implementation-time fixes:
 
 `IMPL-CONFLICT-012` — Class-D server helper placed in organizer `api_v1` schema — **RESOLVED**.
 
-Resolution: moved the bridge to `internal.resolve_public_invitation`, kept it server/service-only, revoked `PUBLIC`/`anon`/`authenticated`, and updated Edge to call the internal schema through service-role PostgREST profile headers. This does not expand the approved 31 Organizer Class-C client-callable surfaces.
+Resolution: moved the implementation to hidden `internal.resolve_public_invitation`, kept client roles denied, and updated Edge to call the narrow `edge_api.resolve_public_invitation` service-only bridge through PostgREST profile headers. This does not expand the approved 31 Organizer Class-C client-callable surfaces.
+
+`IMPL-CONFLICT-013` — Class-D helper required PostgREST access to hidden `internal` schema — **RESOLVED**.
+
+Resolution: removed `internal` from local `[api].schemas`, removed direct service-role schema/function access to `internal`, and added the narrow `edge_api.resolve_public_invitation` bridge for the Edge Function's provider-compatible PostgREST RPC call. The hidden implementation remains in `internal`.
 
 `IMPL-GAP-006` — DEC-B-004 limiter authority/persistence evidence — **RESOLVED**.
 
@@ -276,6 +294,19 @@ Persistence inventory:
 * read authority: trusted owner/test owner only, no direct client access;
 * stored identifiers: non-reversible limiter keys such as `D-INV-001:ip:<sha256>`;
 * retention: bounded opportunistic cleanup during limiter execution.
+
+`IMPL-AMEND-002` — Class-D service-only PostgREST bridge — **RESOLVED / RECORDED**.
+
+Bridge inventory:
+
+* schema: `edge_api`;
+* function: `edge_api.resolve_public_invitation(text, varchar, integer)`;
+* reason: Supabase Edge local/provider runtime uses PostgREST RPC for database function invocation, while `internal` must remain hidden;
+* implementation: `SECURITY DEFINER` wrapper owned by `trusted_function_owner`;
+* behavior: calls only `internal.resolve_public_invitation`;
+* execute authority: `service_role` only;
+* denied: `PUBLIC`, `anon`, and `authenticated`;
+* inventory impact: does not expand the approved 31 Organizer Class-C client-callable surfaces and is not a public Class-D route.
 
 ## P. Remaining Blockers
 

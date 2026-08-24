@@ -58,11 +58,12 @@ Deno.test('malformed token returns generic unavailable without Supabase env', as
 });
 
 Deno.test('limiter digest does not contain raw network signal', async () => {
-  const digest = await sha256Hex('D-INV-001:203.0.113.10');
+  const rawSignal = 'D-INV-001:provider-network-signal';
+  const digest = await sha256Hex(rawSignal);
   if (!/^[a-f0-9]{64}$/.test(digest)) {
     throw new Error('Expected SHA-256 hex digest.');
   }
-  if (digest.includes('203.0.113.10')) {
+  if (digest.includes(rawSignal)) {
     throw new Error('Digest must not contain raw network signal.');
   }
 });

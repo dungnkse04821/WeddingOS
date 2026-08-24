@@ -8,6 +8,13 @@
 -- to distinguish trusted_function_owner from ordinary clients.
 ALTER FUNCTION public.fn_invitation_lifecycle_guard() SECURITY INVOKER;
 
+CREATE SCHEMA IF NOT EXISTS edge_api;
+ALTER SCHEMA edge_api OWNER TO trusted_function_owner;
+REVOKE ALL ON SCHEMA edge_api FROM PUBLIC;
+REVOKE ALL ON SCHEMA edge_api FROM anon;
+REVOKE ALL ON SCHEMA edge_api FROM authenticated;
+GRANT USAGE ON SCHEMA edge_api TO service_role;
+
 -- ---------------------------------------------------------------------------
 -- SECTION 1: CLASS-D ABUSE CONTROL STATE
 -- ---------------------------------------------------------------------------
@@ -230,13 +237,33 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON SCHEMA internal FROM PUBLIC;
-REVOKE ALL ON SCHEMA internal FROM anon;
-REVOKE ALL ON SCHEMA internal FROM authenticated;
-GRANT USAGE ON SCHEMA internal TO service_role;
-
 REVOKE EXECUTE ON FUNCTION internal.resolve_public_invitation(text, varchar, integer) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION internal.resolve_public_invitation(text, varchar, integer) FROM anon;
 REVOKE EXECUTE ON FUNCTION internal.resolve_public_invitation(text, varchar, integer) FROM authenticated;
-GRANT EXECUTE ON FUNCTION internal.resolve_public_invitation(text, varchar, integer) TO service_role;
+REVOKE EXECUTE ON FUNCTION internal.resolve_public_invitation(text, varchar, integer) FROM service_role;
 ALTER FUNCTION internal.resolve_public_invitation(text, varchar, integer) OWNER TO trusted_function_owner;
+
+CREATE OR REPLACE FUNCTION edge_api.resolve_public_invitation(
+  p_raw_token text,
+  p_limiter_key varchar(128) DEFAULT NULL,
+  p_rate_limit_threshold integer DEFAULT 30
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  RETURN internal.resolve_public_invitation(
+    p_raw_token,
+    p_limiter_key,
+    p_rate_limit_threshold
+  );
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION edge_api.resolve_public_invitation(text, varchar, integer) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION edge_api.resolve_public_invitation(text, varchar, integer) FROM anon;
+REVOKE EXECUTE ON FUNCTION edge_api.resolve_public_invitation(text, varchar, integer) FROM authenticated;
+GRANT EXECUTE ON FUNCTION edge_api.resolve_public_invitation(text, varchar, integer) TO service_role;
+ALTER FUNCTION edge_api.resolve_public_invitation(text, varchar, integer) OWNER TO trusted_function_owner;

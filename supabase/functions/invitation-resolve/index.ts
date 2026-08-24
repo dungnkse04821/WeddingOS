@@ -107,8 +107,8 @@ export async function resolveInvitation(request: Request): Promise<Response> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept-Profile': 'internal',
-        'Content-Profile': 'internal',
+        'Accept-Profile': 'edge_api',
+        'Content-Profile': 'edge_api',
         'apikey': serviceRoleKey,
         'Authorization': `Bearer ${serviceRoleKey}`,
       },
