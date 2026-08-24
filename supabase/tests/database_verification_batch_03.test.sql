@@ -525,19 +525,21 @@ SELECT results_eq(
 RESET ROLE;
 
 -- Create budget_items table in this transaction scope (rolled back at end)
--- The information_schema.tables guard will find this as a public table.
-CREATE TABLE public.budget_items (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  wedding_id uuid,
-  wedding_event_id uuid
-);
+-- (No longer needed, budget_items is created in batch 11 and persists)
+-- CREATE TABLE public.budget_items (
+--   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+--   wedding_id uuid,
+--   wedding_event_id uuid
+-- );
 
 -- Grant access so SECURITY DEFINER functions (running as trusted_function_owner) can query it
-GRANT SELECT, INSERT, UPDATE ON public.budget_items TO trusted_function_owner;
+-- GRANT SELECT, INSERT, UPDATE ON public.budget_items TO trusted_function_owner;
 
 -- Insert a budget item linked to the NEW event (eeeeeeee-2222)
-INSERT INTO public.budget_items (id, wedding_id, wedding_event_id)
-VALUES ('b1111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'eeeeeeee-2222-2222-2222-222222222222');
+-- Since batch 11 added strict NOT NULL columns like name, side, status, etc., we must provide them
+INSERT INTO public.budget_items (id, wedding_id, wedding_event_id, name, side, status)
+VALUES ('b1111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'eeeeeeee-2222-2222-2222-222222222222', 'Test Venue', 'COMMON', 'ACTIVE');
+
 
 -- Remove is_main_event from event 2222 so it can be deleted
 UPDATE public.wedding_events SET is_main_event = false WHERE id = 'eeeeeeee-2222-2222-2222-222222222222';

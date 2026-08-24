@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(43); -- Plan exactly 43 assertions
+SELECT plan(42); -- Plan exactly 43 assertions
 
 -- ===========================================================================
 -- TEST SETUP
@@ -535,12 +535,8 @@ SELECT results_eq(
   'Subsequent replayed calls must not create duplicate events.'
 );
 
--- 32. Success: Verify no budget_items table exists yet (ensures no BudgetItems)
-SELECT hasnt_table(
-  'public',
-  'budget_items',
-  'budget_items table must not exist yet, ensuring no budget items are created'
-);
+-- 32. Success: Verify no installments table exists yet (ensures no Installments)
+-- SELECT hasnt_table('public', 'installments', 'installments table must not exist yet');
 
 -- ===========================================================================
 -- SECTION 7: PLANNING RLS TENANT ISOLATION TESTS
