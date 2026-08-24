@@ -2,7 +2,7 @@
 
 ## Status
 
-In Progress. M4 Public Guest Invitation Resolve was confirmed approved by the Product Owner before this checkpoint began.
+Complete. M4 Public Guest Invitation Resolve was confirmed approved by the Product Owner before this checkpoint began.
 
 ## Delivered Design
 
@@ -45,7 +45,7 @@ The original `EPERM` was not a live Vite/Node lock: the stale ignored `dist` fil
 
 Local Supabase Edge smoke used `npx supabase functions serve invitation-rsvp --no-verify-jwt` with synthetic local fixtures that were removed afterward. A malformed token returned `404 INVITATION_UNAVAILABLE` with `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, and no internal detail. A valid synthetic invitation returned `200` with the authoritative current RSVP DTO. A local stack restart was required to reload the existing `edge_api` PostgREST schema exposure after a stale `406` profile response. No credential file or repository secret was created. Direct Edge unit tests are not runnable because `deno` is not installed, which is not a delivery blocker.
 
-Flutter regression passes (14 tests); analyzer reports 0 errors, 0 warnings, and 191 existing info diagnostics. Git commit and push remain the final delivery gate.
+Flutter regression passes (14 tests); analyzer reports 0 errors, 0 warnings, and 191 existing info diagnostics. The reviewed implementation was committed as `5a4a1f2` (`m4.2: implement public rsvp submit`) and pushed to `origin/main` before this final delivery record.
 
 ## Scope Boundary
 
