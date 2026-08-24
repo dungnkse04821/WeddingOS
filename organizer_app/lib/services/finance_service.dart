@@ -1,5 +1,4 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:uuid/uuid.dart';
 
 import '../models/finance_summary_model.dart';
 import '../models/budget_item_model.dart';
@@ -199,9 +198,9 @@ class FinanceService {
     required String payerDisplayName,
     String? payerWeddingMemberId,
     String? notes,
+    required String requestId,
   }) async {
     try {
-      final requestId = const Uuid().v4();
       await _client.rpc('create_payment', params: {
         'p_request_id': requestId,
         'p_budget_item_id': budgetItemId,
@@ -257,9 +256,9 @@ class FinanceService {
     required String refundDate,
     required String receiver,
     String? notes,
+    required String requestId,
   }) async {
     try {
-      final requestId = const Uuid().v4();
       await _client.rpc('create_refund', params: {
         'p_request_id': requestId,
         'p_budget_item_id': budgetItemId,

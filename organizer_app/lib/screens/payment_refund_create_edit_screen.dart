@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 import '../services/finance_service.dart';
 
 class PaymentRefundCreateEditScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class _PaymentRefundCreateEditScreenState extends State<PaymentRefundCreateEditS
   late TextEditingController _notesCtrl;
   DateTime _date = DateTime.now();
   bool _loading = false;
+  late final String _requestId;
 
   @override
   void initState() {
@@ -29,6 +31,7 @@ class _PaymentRefundCreateEditScreenState extends State<PaymentRefundCreateEditS
     _amountCtrl = TextEditingController();
     _nameCtrl = TextEditingController();
     _notesCtrl = TextEditingController();
+    _requestId = const Uuid().v4();
   }
 
   @override
@@ -51,6 +54,7 @@ class _PaymentRefundCreateEditScreenState extends State<PaymentRefundCreateEditS
           refundDate: _date.toIso8601String().split('T').first,
           receiver: _nameCtrl.text,
           notes: _notesCtrl.text.isEmpty ? null : _notesCtrl.text,
+          requestId: _requestId,
         );
       } else {
         await FinanceService.instance.createPayment(
@@ -59,6 +63,7 @@ class _PaymentRefundCreateEditScreenState extends State<PaymentRefundCreateEditS
           paymentDate: _date.toIso8601String().split('T').first,
           payerDisplayName: _nameCtrl.text,
           notes: _notesCtrl.text.isEmpty ? null : _notesCtrl.text,
+          requestId: _requestId,
         );
       }
       if (mounted) Navigator.pop(context);

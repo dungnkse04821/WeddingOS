@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(28);
+SELECT plan(32);
 
 -- ---------------------------------------------------------------------------
 -- 0. TEST SETUP
@@ -222,6 +222,53 @@ SELECT results_eq(
   ARRAY[500000.00::numeric(15,2)],
   'Aggregate VIEW target_budget is correctly returned'
 );
+
+-- ---------------------------------------------------------------------------
+-- 6b. VIEW SECURITY VISIBILITY BOUNDARIES
+-- ---------------------------------------------------------------------------
+-- Collaborator cannot read summaries (0 rows)
+SELECT set_config('role', 'authenticated', true);
+SELECT set_config('request.jwt.claims', '{"sub": "bbbbbbb2-2222-2222-2222-222222222222"}', true); -- Collab
+SELECT is_empty(
+  'SELECT * FROM public.finance_summaries WHERE wedding_id = ''c0a1a1a1-1111-1111-1111-111111111111''',
+  'Collaborator sees 0 rows in finance_summaries'
+);
+
+-- Outsider cannot read summaries (0 rows)
+SELECT set_config('request.jwt.claims', '{"sub": "ccccccc3-3333-3333-3333-333333333333"}', true); -- Outsider
+SELECT is_empty(
+  'SELECT * FROM public.finance_summaries WHERE wedding_id = ''c0a1a1a1-1111-1111-1111-111111111111''',
+  'Outsider sees 0 rows in finance_summaries'
+);
+
+-- Anon cannot read summaries (permission denied)
+SELECT set_config('role', 'anon', true);
+SELECT set_config('request.jwt.claims', null, true);
+SELECT throws_ok(
+  'SELECT * FROM public.finance_summaries WHERE wedding_id = ''c0a1a1a1-1111-1111-1111-111111111111''',
+  '42501',
+  NULL,
+  'Anon sees permission denied on finance_summaries'
+);
+
+-- Cross-Wedding OWNER cannot read another wedding summaries
+SELECT set_config('role', 'postgres', true);
+INSERT INTO public.weddings (id, name, status, exact_date, target_budget) 
+  VALUES ('c0a1a1a2-2222-2222-2222-222222222222', 'Wedding 2', 'ACTIVE', '2027-01-01', 600000.00) ON CONFLICT DO NOTHING;
+INSERT INTO auth.users (id, email) VALUES ('aaaaaaa2-2222-2222-2222-222222222222', 'owner2@test.com') ON CONFLICT DO NOTHING;
+INSERT INTO public.wedding_members (id, wedding_id, user_id, display_name, profile_email, role, status) VALUES
+  ('d3333333-3333-3333-3333-333333333333', 'c0a1a1a2-2222-2222-2222-222222222222', 'aaaaaaa2-2222-2222-2222-222222222222', 'Owner 2', 'owner2@test.com', 'OWNER', 'ACTIVE')
+ON CONFLICT DO NOTHING;
+
+SELECT set_config('role', 'authenticated', true);
+SELECT set_config('request.jwt.claims', '{"sub": "aaaaaaa2-2222-2222-2222-222222222222"}', true); -- Owner 2
+SELECT is_empty(
+  'SELECT * FROM public.finance_summaries WHERE wedding_id = ''c0a1a1a1-1111-1111-1111-111111111111''',
+  'Owner 2 cannot see Wedding 1 summaries'
+);
+
+-- Restore Owner 1 role
+SELECT set_config('request.jwt.claims', '{"sub": "aaaaaaa1-1111-1111-1111-111111111111"}', true);
 
 -- ---------------------------------------------------------------------------
 -- 7. FIN-007 PREVIEW & COMMIT

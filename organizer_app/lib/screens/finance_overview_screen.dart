@@ -5,7 +5,14 @@ import '../services/supabase_service.dart';
 import 'budget_item_list_screen.dart';
 
 class FinanceOverviewScreen extends StatefulWidget {
-  const FinanceOverviewScreen({Key? key}) : super(key: key);
+  final FinanceService? financeService;
+  final SupabaseService? supabaseService;
+
+  const FinanceOverviewScreen({
+    Key? key,
+    this.financeService,
+    this.supabaseService,
+  }) : super(key: key);
 
   @override
   State<FinanceOverviewScreen> createState() => _FinanceOverviewScreenState();
@@ -15,6 +22,9 @@ class _FinanceOverviewScreenState extends State<FinanceOverviewScreen> {
   bool _loading = true;
   String? _error;
   FinanceSummaryModel? _summary;
+
+  FinanceService get _financeService => widget.financeService ?? FinanceService.instance;
+  SupabaseService get _supabaseService => widget.supabaseService ?? SupabaseService.instance;
 
   @override
   void initState() {
@@ -28,9 +38,9 @@ class _FinanceOverviewScreenState extends State<FinanceOverviewScreen> {
       _error = null;
     });
     try {
-      final weddingId = SupabaseService.instance.getSelectedWeddingId();
+      final weddingId = _supabaseService.getSelectedWeddingId();
       if (weddingId == null) throw Exception("No wedding selected");
-      final summary = await FinanceService.instance.fetchFinanceSummary(weddingId);
+      final summary = await _financeService.fetchFinanceSummary(weddingId);
       setState(() {
         _summary = summary;
       });
