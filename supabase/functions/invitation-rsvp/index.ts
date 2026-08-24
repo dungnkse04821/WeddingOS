@@ -14,6 +14,7 @@ type SubmitResult = {
   retry_after_seconds?: number;
   can_submit_rsvp?: boolean;
   rsvp?: unknown;
+  vietqr?: unknown;
 };
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -103,7 +104,7 @@ export async function submitRsvp(request: Request): Promise<Response> {
       if (status === 429 && result.retry_after_seconds) headers.set('Retry-After', String(result.retry_after_seconds));
       return publicError(status, code, headers);
     }
-    return new Response(JSON.stringify({ ok: true, can_submit_rsvp: result.can_submit_rsvp, rsvp: result.rsvp }), {
+    return new Response(JSON.stringify({ ok: true, can_submit_rsvp: result.can_submit_rsvp, rsvp: result.rsvp, vietqr: result.vietqr }), {
       status: 200,
       headers,
     });

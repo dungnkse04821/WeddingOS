@@ -5,6 +5,7 @@ import 'auth_screen.dart';
 import 'wedding_selection_screen.dart';
 import 'planning_screen.dart';
 import 'directory_screen.dart';
+import 'vietqr_configuration_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -239,6 +240,9 @@ class _HomeScreenState extends State<HomeScreen> {
           _buildGuestDirectoryCard(context),
           const SizedBox(height: 20),
 
+          _buildVietQrCard(context),
+          const SizedBox(height: 20),
+
           // Workspace overview card
           Container(
             padding: const EdgeInsets.all(24),
@@ -351,6 +355,40 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               );
             },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVietQrCard(BuildContext context) {
+    if (_wedding == null) return const SizedBox.shrink();
+    final enabled = _wedding!['vietqr_enabled'] as bool? ?? false;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFC857).withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFFFC857).withOpacity(0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('VIETQR MỪNG CƯỚI', style: TextStyle(color: Color(0xFFFFC857), fontWeight: FontWeight.bold, fontSize: 12)),
+          const SizedBox(height: 8),
+          Text(enabled ? 'Đang bật có điều kiện' : 'Chưa bật', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 6),
+          const Text('Chỉ hiện trên thiệp sau khi RSVP hiện tại đã hoàn tất.', style: TextStyle(color: Colors.white70)),
+          const SizedBox(height: 14),
+          OutlinedButton.icon(
+            onPressed: () async {
+              final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(
+                builder: (_) => VietQrConfigurationScreen(wedding: _wedding!),
+              ));
+              if (changed == true) _loadWorkspaceData();
+            },
+            icon: const Icon(Icons.qr_code_2),
+            label: const Text('Cấu hình VietQR'),
           ),
         ],
       ),

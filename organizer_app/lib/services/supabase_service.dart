@@ -97,6 +97,23 @@ class SupabaseService {
     await clearSelectedWedding();
   }
 
+  /// M4.3 uses the approved Class-B Wedding columns. RLS restricts this to an
+  /// active member of an ACTIVE Wedding; the DB validates enabled facts.
+  Future<void> updateVietQrConfiguration({
+    required String weddingId,
+    required bool enabled,
+    required String bankId,
+    required String accountNumber,
+    required String accountName,
+  }) async {
+    await client.from('weddings').update({
+      'vietqr_enabled': enabled,
+      'vietqr_bank_id': bankId.trim().isEmpty ? null : bankId.trim(),
+      'vietqr_account_no': accountNumber.trim().isEmpty ? null : accountNumber.trim(),
+      'vietqr_account_name': accountName.trim().isEmpty ? null : accountName.trim(),
+    }).eq('id', weddingId);
+  }
+
   /// Calls api_v1.create_wedding (TOP-WED-001) RPC with a client-generated request_id.
   Future<Map<String, dynamic>> createWedding({
     required String requestId,

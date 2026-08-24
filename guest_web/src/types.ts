@@ -21,7 +21,12 @@ export type PublicInvitationDto = {
   can_submit_rsvp: boolean;
   events: PublicInvitationEventDto[];
   rsvp: PublicRsvpDto;
+  vietqr: PublicVietQrDto;
 };
+
+export type PublicVietQrDto =
+  | { available: false }
+  | { available: true; bank_id: string; account_no: string; account_name: string };
 
 export type PublicInvitationEventDto = {
   id: string;
@@ -51,7 +56,7 @@ export type PublicRsvpDto = {
 };
 
 export type RsvpSubmitResponse =
-  | { ok: true; can_submit_rsvp: boolean; rsvp: PublicRsvpDto }
+  | { ok: true; can_submit_rsvp: boolean; rsvp: PublicRsvpDto; vietqr: PublicVietQrDto }
   | { ok: false; error_code: 'INVITATION_UNAVAILABLE' | 'RSVP_CLOSED' | 'INVALID_RESPONSE' | 'EVENT_NOT_AVAILABLE' | 'RATE_LIMITED' | 'TEMPORARY_UNAVAILABLE' };
 
 export type ResolveResponse =

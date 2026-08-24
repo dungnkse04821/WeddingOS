@@ -2,7 +2,7 @@ import { useEffect, useState, type Dispatch, type FormEvent, type SetStateAction
 
 import { resolveInvitation, submitRsvp } from './api';
 import { bootstrapInvitationToken, clearSessionToken } from './token';
-import type { PublicInvitationDto, PublicInvitationEventDto, PublicRsvpDto, ResolveState } from './types';
+import type { PublicInvitationDto, PublicInvitationEventDto, PublicRsvpDto, PublicVietQrDto, ResolveState } from './types';
 import './styles.css';
 
 export default function App() {
@@ -67,6 +67,7 @@ function StatusPanel({ title, body }: { title: string; body: string }) {
 function InvitationPage({ invitation }: { invitation: PublicInvitationDto }) {
   const readyCount = invitation.events.filter((event) => event.rsvp_ready).length;
   const [rsvp, setRsvp] = useState(invitation.rsvp);
+  const [vietqr, setVietqr] = useState(invitation.vietqr);
   const [formOpen, setFormOpen] = useState(false);
 
   return (
@@ -93,9 +94,20 @@ function InvitationPage({ invitation }: { invitation: PublicInvitationDto }) {
           <button type="button" onClick={() => setFormOpen(true)}>Xác nhận tham dự</button>
         )}
         {readyCount > 0 && !invitation.can_submit_rsvp && <p>Đã qua hạn chốt phản hồi. Thông tin hiện ở chế độ chỉ xem.</p>}
-        {formOpen && <RsvpForm invitation={invitation} onComplete={setRsvp} />}
+        {formOpen && <RsvpForm invitation={invitation} setRsvp={setRsvp} setVietqr={setVietqr} />}
         {rsvp.warnings.includes('RSVP_OVERCOUNT') && <p role="status">Thiệp được chuẩn bị cho {invitation.party.invited_count} khách. Vui lòng để lại ghi chú nếu cần thêm người.</p>}
       </section>
+
+      {vietqr.available && (
+        <section className="vietqr" aria-label="Thông tin mừng cưới">
+          <p className="eyebrow">Lời chúc mừng</p>
+          <h2>Mừng cưới tùy tâm</h2>
+          <p>Ngân hàng: {vietqr.bank_id}</p>
+          <p>Số tài khoản: {vietqr.account_no}</p>
+          <p>Chủ tài khoản: {vietqr.account_name}</p>
+          <p className="vietqr-note">Sự hiện diện của bạn đã là niềm vui lớn với gia đình.</p>
+        </section>
+      )}
 
       {(invitation.wedding.public_contact_phone || invitation.wedding.public_contact_email) && (
         <section className="contact">
@@ -108,7 +120,11 @@ function InvitationPage({ invitation }: { invitation: PublicInvitationDto }) {
   );
 }
 
-function RsvpForm({ invitation, onComplete }: { invitation: PublicInvitationDto; onComplete: Dispatch<SetStateAction<PublicRsvpDto>> }) {
+function RsvpForm({ invitation, setRsvp, setVietqr }: {
+  invitation: PublicInvitationDto;
+  setRsvp: Dispatch<SetStateAction<PublicRsvpDto>>;
+  setVietqr: Dispatch<SetStateAction<PublicVietQrDto>>;
+}) {
   const existing = new Map(invitation.rsvp.event_responses.map((response) => [response.event_id, response]));
   const [responses, setResponses] = useState(existing);
   const [changed, setChanged] = useState(new Set<string>());
@@ -144,7 +160,7 @@ function RsvpForm({ invitation, onComplete }: { invitation: PublicInvitationDto;
       responses: [...changed].map((eventId) => responses.get(eventId)).filter((value): value is NonNullable<typeof value> => Boolean(value)),
       optional_fields: optionalFields,
     });
-    if (result.ok) { onComplete(result.rsvp); return; }
+    if (result.ok) { setRsvp(result.rsvp); setVietqr(result.vietqr); return; }
     setStatus('error');
     setError(result.error_code === 'RSVP_CLOSED' ? 'Đã qua hạn chốt phản hồi.'
       : result.error_code === 'RATE_LIMITED' ? 'Vui lòng đợi một lát rồi thử lại.'

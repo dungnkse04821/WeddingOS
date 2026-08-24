@@ -2,7 +2,7 @@
 
 ## Giai đoạn Hiện tại
 
-Implementation -> M4.2: Public RSVP Submit — **COMPLETE** (D-RSV-001 current RSVP/EventResponse persistence, Class-D Edge boundary, Wedding-timezone cutoff enforcement, and Guest Web RSVP form are delivered and verified.)
+Implementation -> M4.3: VietQR Gating — **COMPLETE** (STORY-07-02 Wedding-level configuration and authoritative Class-D qualified-RSVP gating are delivered and verified.)
 
 ## Tình trạng Dự án
 
@@ -91,6 +91,7 @@ Tập trung vào các mảng cốt lõi:
 *   **M3 Invitation / Credential Foundation:** 🟢 **Đã phê duyệt (Approved)** — Invitation schema, Event targeting, lifecycle triggers, DEC-B-002 credential format, TOP-INV-001 credential regeneration, active credential invariant, organizer UI, and tests implemented; DB 232/232 pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 191 info — Chi tiết tại [19-m3-invitation-credential-foundation.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/19-m3-invitation-credential-foundation.md)
 *   **M4 Public Guest Invitation Resolve:** 🟢 **Đã phê duyệt (Approved)** — D-INV-001 public resolve, Guest Web shell, URL fragment token extraction/scrubbing, sanitized DTO, view tracking, Edge Function, hidden internal DB implementation, service-only `edge_api` PostgREST bridge, and DEC-B-004 Class-D rate limiting implemented; IMPL-CONFLICT-012, IMPL-CONFLICT-013, IMPL-GAP-006, IMPL-AMEND-001, and IMPL-AMEND-002 resolved/recorded; DB 306/306 pass; Guest Web tests/lint/build pass; Flutter tests pass; analyzer 0 errors / 0 warnings / 191 info — Chi tiết tại [20-m4-public-invitation-resolve.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/20-m4-public-invitation-resolve.md)
 *   **M4.2 Public RSVP Submit:** 🟢 **Hoàn thành (Complete)** — D-RSV-001 current RSVP/EventResponse schema, trusted Class-D Edge/`edge_api` bridge, Wedding-timezone cutoff, partial patch-by-event, RSVP limiter integration, and Guest Web form delivered; DB 343/343, canonical Guest Web tests/lint/build, local Edge smoke, Flutter regression, commit, and push pass — Chi tiết tại [21-m4-2-public-rsvp-submit.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/21-m4-2-public-rsvp-submit.md)
+*   **M4.3 VietQR Gating:** 🟢 **Hoàn thành (Complete)** — Wedding-level static configuration, authoritative qualified-RSVP Class-D DTO gate, Guest Web conditional display, and organizer configuration delivered; clean DB reset and 362 DB assertions pass, Guest Web tests/lint/build pass, and Flutter test/analyzer pass — Chi tiết tại [22-m4-3-vietqr-gating.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/22-m4-3-vietqr-gating.md)
 
 ## Gap Register
 
@@ -113,8 +114,8 @@ Tập trung vào các mảng cốt lõi:
 
 ## Giai đoạn Tiếp theo
 
-Implementation -> Product Owner review after M4.2 Public RSVP Submit delivery. VietQR, Finance, Media, push/email/SMS, organizer manual RSVP, and Wedding Delete remain outside the completed checkpoint.
+Implementation -> Product Owner review after M4.3 VietQR Gating delivery. Finance, Media, push/email/SMS, organizer manual RSVP, and Wedding Delete remain outside the completed checkpoint.
 
 ## Hành động Khuyên dùng tiếp theo
 
-Product Owner review M4.2 delivery. Không bắt đầu VietQR, Finance, Media, push/email/SMS, organizer manual RSVP hoặc Wedding Delete trước khi có phê duyệt mới.
+Product Owner review M4.3 delivery. Do not start Finance, Media, push/email/SMS, organizer manual RSVP, or Wedding Delete without approval.

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import App from './App';
@@ -19,6 +19,7 @@ const invitation = {
   },
   status: 'READY',
   can_submit_rsvp: true,
+  vietqr: { available: false },
   rsvp: {
     summary: 'PENDING', companion_names: null, dietary_info: null, guest_message: null, note: null,
     event_responses: [], warnings: [],
@@ -52,6 +53,7 @@ const invitation = {
 };
 
 afterEach(() => {
+  cleanup();
   vi.restoreAllMocks();
   window.sessionStorage.clear();
   window.localStorage.clear();
@@ -105,7 +107,7 @@ describe('Guest invitation shell', () => {
     };
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, invitation }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, can_submit_rsvp: true, rsvp: updated }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, can_submit_rsvp: true, rsvp: updated, vietqr: { available: true, bank_id: 'VCB', account_no: '0123456789', account_name: 'NGUYEN VAN A' } }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
     window.history.replaceState(null, '', `/#/invite/${token}`);
     render(<App />);
@@ -119,5 +121,15 @@ describe('Guest invitation shell', () => {
     const body = JSON.parse(request.body);
     expect(body.responses).toEqual([{ event_id: invitation.events[0].id, response_status: 'ATTENDING', attending_count: 1 }]);
     expect(screen.getByText('Thiệp được chuẩn bị cho 4 khách. Vui lòng để lại ghi chú nếu cần thêm người.')).toBeInTheDocument();
+    expect(screen.getByText('Số tài khoản: 0123456789')).toBeInTheDocument();
+  });
+
+  it('does not render bank facts when the authoritative DTO marks VietQR unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true, invitation }), { status: 200 })));
+    window.history.replaceState(null, '', `/#/invite/${token}`);
+    render(<App />);
+    await screen.findByText('Gia đình bác Tư');
+    expect(screen.queryByLabelText('Thông tin mừng cưới')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Số tài khoản:/)).not.toBeInTheDocument();
   });
 });
