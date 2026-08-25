@@ -65,4 +65,7 @@ No M7 implementation in this design step. No gallery, video, R2, media library, 
 
 ## Amendments and Decisions
 
+### M7-AUTH-BRIDGE-001
+Edge service-role execution makes `auth.uid()` the server identity, so it cannot directly invoke the auth.uid()-based hidden delete capabilities. TOP-WED-004 therefore uses two service-only `edge_api` bridge functions accepting a verified actor ID. Edge must verify the organizer JWT and derive that ID; clients cannot supply it. DB independently checks active OWNER membership. This is not a general execute-as-user mechanism, does not use GUC impersonation, and does not alter ordinary Class-C RPCs such as archive.
+
 No architecture amendment is required: the approved Edge/Hybrid delete surface already exists. Provider batch size is an implementation configuration to be documented during implementation. All PO decisions required by the prior design review are now resolved.
