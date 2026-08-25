@@ -53,7 +53,7 @@ class _CoverMediaScreenState extends State<CoverMediaScreen> {
       padding: const EdgeInsets.all(20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (_loading) const Center(child: CircularProgressIndicator())
-        else if (_url != null) ClipRRect(borderRadius: BorderRadius.circular(16), child: Image.network(_url!, height: 220, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => const SizedBox(height: 220, child: Center(child: Text('Cover preview is unavailable.'))))
+        else if (_url != null) ClipRRect(borderRadius: BorderRadius.circular(16), child: Image.network(_url!, height: 220, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => const SizedBox(height: 220, child: Center(child: Text('Cover preview is unavailable.')))))
         else const SizedBox(height: 220, child: Center(child: Text('No cover photo yet.'))),
         const SizedBox(height: 20),
         if (_archived) const Text('This archived Wedding is read-only. Existing cover photos remain visible to members.')
@@ -62,3 +62,4 @@ class _CoverMediaScreenState extends State<CoverMediaScreen> {
       ]),
     ),
   );
+}

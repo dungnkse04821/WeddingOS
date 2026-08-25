@@ -238,6 +238,7 @@ class _WeddingSelectionScreenState extends State<WeddingSelectionScreen> {
         final w = _weddings[index];
         final id = w['id'] as String;
         final name = w['name'] as String;
+        final status = w['status'] as String? ?? 'ACTIVE';
         final targetBudget = w['target_budget'] != null 
             ? '${w['target_budget']} VND'
             : 'Not set';
@@ -265,17 +266,32 @@ class _WeddingSelectionScreenState extends State<WeddingSelectionScreen> {
                 fontSize: 18,
               ),
             ),
+            isThreeLine: true,
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 8.0),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.calendar_today_rounded, size: 14, color: Colors.white.withOpacity(0.5)),
-                  const SizedBox(width: 6),
-                  Text(dateStr, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13)),
-                  const SizedBox(width: 16),
-                  Icon(Icons.monetization_on_outlined, size: 14, color: Colors.white.withOpacity(0.5)),
-                  const SizedBox(width: 6),
-                  Text(targetBudget, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13)),
+                  if (status != 'ACTIVE')
+                    Text(
+                      status == 'ARCHIVED' ? 'ARCHIVED · READ ONLY' : 'DELETING · RECOVERY REQUIRED',
+                      style: TextStyle(
+                        color: status == 'ARCHIVED' ? Colors.amber : Colors.redAccent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  Row(
+                    children: [
+                      Icon(Icons.calendar_today_rounded, size: 14, color: Colors.white.withOpacity(0.5)),
+                      const SizedBox(width: 6),
+                      Text(dateStr, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13)),
+                      const SizedBox(width: 16),
+                      Icon(Icons.monetization_on_outlined, size: 14, color: Colors.white.withOpacity(0.5)),
+                      const SizedBox(width: 6),
+                      Expanded(child: Text(targetBudget, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13))),
+                    ],
+                  ),
                 ],
               ),
             ),

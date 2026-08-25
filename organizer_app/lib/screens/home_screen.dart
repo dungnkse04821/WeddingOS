@@ -7,6 +7,7 @@ import 'planning_screen.dart';
 import 'directory_screen.dart';
 import 'vietqr_configuration_screen.dart';
 import 'cover_media_screen.dart';
+import 'wedding_lifecycle_panel.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -50,12 +51,23 @@ class _HomeScreenState extends State<HomeScreen> {
           .from('weddings')
           .select()
           .eq('id', selectedId)
-          .single();
+          .maybeSingle();
+
+      if (wResponse == null) {
+        await SupabaseService.instance.clearSelectedWedding();
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const WeddingSelectionScreen()),
+            (route) => false,
+          );
+        }
+        return;
+      }
 
       // 2. Fetch wedding members via RLS SELECT on public.wedding_members
       final mResponse = await SupabaseService.instance.client
           .from('wedding_members')
-          .select('id, display_name, profile_email, role, status')
+          .select('id, user_id, display_name, profile_email, role, status')
           .order('created_at', ascending: true);
 
       // 3. Fetch tasks to compute progress metrics
@@ -201,6 +213,24 @@ class _HomeScreenState extends State<HomeScreen> {
     final timezone = _wedding!['timezone'] as String? ?? 'Asia/Ho_Chi_Minh';
     final culturalContext = _wedding!['cultural_context'] as String? ?? 'TUY_CHON';
     final status = _wedding!['status'] as String? ?? 'ACTIVE';
+    final currentUserId = SupabaseService.instance.currentUser?.id;
+    final isOwner = _members.any(
+      (member) => member['user_id'] == currentUserId &&
+          member['status'] == 'ACTIVE' &&
+          member['role'] == 'OWNER',
+    );
+
+    if (status == 'DELETING') {
+      return WeddingLifecyclePanel(
+        weddingId: _wedding!['id'] as String,
+        weddingName: _wedding!['name'] as String,
+        status: status,
+        isOwner: isOwner,
+        onArchived: () {},
+        onDeleted: _handleDeleted,
+        onSwitchWedding: _switchWedding,
+      );
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20.0),
@@ -233,19 +263,32 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 20),
 
+          WeddingLifecyclePanel(
+            weddingId: _wedding!['id'] as String,
+            weddingName: _wedding!['name'] as String,
+            status: status,
+            isOwner: isOwner,
+            onArchived: () => setState(() => _wedding!['status'] = 'ARCHIVED'),
+            onDeleted: _handleDeleted,
+            onSwitchWedding: _switchWedding,
+          ),
+          const SizedBox(height: 20),
+
           // Planning progress card
-          _buildPlanningProgressCard(context),
-          const SizedBox(height: 20),
+          if (status == 'ACTIVE') ...[
+            _buildPlanningProgressCard(context),
+            const SizedBox(height: 20),
 
-          // Guest Directory card
-          _buildGuestDirectoryCard(context),
-          const SizedBox(height: 20),
+            // Guest Directory card
+            _buildGuestDirectoryCard(context),
+            const SizedBox(height: 20),
 
-          _buildVietQrCard(context),
-          const SizedBox(height: 20),
+            _buildVietQrCard(context),
+            const SizedBox(height: 20),
 
-          _buildCoverMediaCard(context),
-          const SizedBox(height: 20),
+            _buildCoverMediaCard(context),
+            const SizedBox(height: 20),
+          ],
 
           // Workspace overview card
           Container(
@@ -396,6 +439,21 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _switchWedding() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const WeddingSelectionScreen()),
+    );
+  }
+
+  Future<void> _handleDeleted() async {
+    await SupabaseService.instance.clearSelectedWedding();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const WeddingSelectionScreen()),
+      (route) => false,
     );
   }
 
