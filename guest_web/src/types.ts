@@ -22,6 +22,7 @@ export type PublicInvitationDto = {
   events: PublicInvitationEventDto[];
   rsvp: PublicRsvpDto;
   vietqr: PublicVietQrDto;
+  cover_photo_signed_url: string | null;
 };
 
 export type PublicVietQrDto =

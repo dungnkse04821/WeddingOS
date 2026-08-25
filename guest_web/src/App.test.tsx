@@ -19,6 +19,7 @@ const invitation = {
   },
   status: 'READY',
   can_submit_rsvp: true,
+  cover_photo_signed_url: null,
   vietqr: { available: false },
   rsvp: {
     summary: 'PENDING', companion_names: null, dietary_info: null, guest_message: null, note: null,
@@ -73,6 +74,14 @@ describe('Guest invitation shell', () => {
     expect(screen.getByRole('button', { name: 'Xác nhận tham dự' })).toBeEnabled();
     expect(window.location.hash).toBe('');
     expect(window.localStorage.length).toBe(0);
+  });
+
+  it('renders a signed cover only when the trusted DTO provides one', async () => {
+    const withCover = { ...invitation, cover_photo_signed_url: 'https://storage.example/signed-cover' };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true, invitation: withCover }), { status: 200 })));
+    window.history.replaceState(null, '', `/#/invite/${token}`);
+    render(<App />);
+    expect(await screen.findByAltText('Ảnh đại diện đám cưới')).toHaveAttribute('src', withCover.cover_photo_signed_url);
   });
 
   it('renders invalid invitation state and clears session token', async () => {

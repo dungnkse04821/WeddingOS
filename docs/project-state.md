@@ -2,7 +2,7 @@
 
 ## Giai đoạn Hiện tại
 
-Implementation -> M5: Finance Core — **COMPLETE** (STORY-08-01 Core financial aggregates, installments, payments, refunds, constraints, Class-C API, and Flutter UI delivered.)
+Implementation -> M6: Storage & Media Foundation — **COMPLETE** (private deterministic Wedding cover storage, organizer upload/replace, and Class-D signed cover rendering delivered.)
 
 ## Tình trạng Dự án
 
@@ -93,6 +93,7 @@ Tập trung vào các mảng cốt lõi:
 *   **M4.2 Public RSVP Submit:** 🟢 **Hoàn thành (Complete)** — D-RSV-001 current RSVP/EventResponse schema, trusted Class-D Edge/`edge_api` bridge, Wedding-timezone cutoff, partial patch-by-event, RSVP limiter integration, and Guest Web form delivered; DB 343/343, canonical Guest Web tests/lint/build, local Edge smoke, Flutter regression, commit, and push pass — Chi tiết tại [21-m4-2-public-rsvp-submit.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/21-m4-2-public-rsvp-submit.md)
 *   **M4.3 VietQR Gating:** 🟢 **Hoàn thành (Complete)** — Wedding-level static configuration, authoritative qualified-RSVP Class-D DTO gate, Guest Web conditional display, and organizer configuration delivered; clean DB reset and 362 DB assertions pass, Guest Web tests/lint/build pass, and Flutter test/analyzer pass — Chi tiết tại [22-m4-3-vietqr-gating.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/22-m4-3-vietqr-gating.md)
 *   **M5 Finance Core:** 🟡 **Chưa Hoàn Thành (Incomplete / Needs Fixes)** — 8 Class-C API surfaces (FIN-001 -> FIN-007), strict delete guards, VIEW-based finance aggregates delivered and DB verified. IMPL-CONFLICT-014 and IMPL-CONFLICT-016 resolved. Tuy nhiên Flutter UX implementation hiện tại chỉ là visual scaffolding, chưa được wire với service backend. Cần phải wire toàn bộ và verify service contract trước khi Complete. — Chi tiết tại [23-m5-finance-core.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/23-m5-finance-core.md)
+*   **M6 Storage & Media Foundation:** 🟢 **Hoàn thành (Complete)** — Batch 12 private `wedding_media` bucket, exact WebP cover slot, Storage RLS, no organizer DELETE grant, Flutter upload/replace, D-INV-001 signed cover field, and Guest Web fallback delivered. DB 417 assertions, Flutter 21 tests/analyzer 0 errors and warnings, Guest Web tests/lint/build, and real authenticated Storage HTTP verification pass — Chi tiết tại [24-m6-storage-media-foundation.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/24-m6-storage-media-foundation.md)
 
 ## Gap Register
 

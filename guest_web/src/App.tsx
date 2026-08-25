@@ -72,6 +72,7 @@ function InvitationPage({ invitation }: { invitation: PublicInvitationDto }) {
 
   return (
     <article className="invitation-card">
+      {invitation.cover_photo_signed_url && <img className="cover-photo" src={invitation.cover_photo_signed_url} alt="Ảnh đại diện đám cưới" onError={(event) => { event.currentTarget.hidden = true; }} />}
       <p className="eyebrow">Trân trọng kính mời</p>
       <h1>{invitation.party.display_name}</h1>
       <p className="wedding-name">{invitation.wedding.name}</p>

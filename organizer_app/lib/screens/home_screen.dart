@@ -6,6 +6,7 @@ import 'wedding_selection_screen.dart';
 import 'planning_screen.dart';
 import 'directory_screen.dart';
 import 'vietqr_configuration_screen.dart';
+import 'cover_media_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -243,6 +244,9 @@ class _HomeScreenState extends State<HomeScreen> {
           _buildVietQrCard(context),
           const SizedBox(height: 20),
 
+          _buildCoverMediaCard(context),
+          const SizedBox(height: 20),
+
           // Workspace overview card
           Container(
             padding: const EdgeInsets.all(24),
@@ -392,6 +396,21 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCoverMediaCard(BuildContext context) {
+    final archived = _wedding!['status'] == 'ARCHIVED';
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white.withOpacity(0.03), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withOpacity(0.08))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const Text('INVITATION COVER PHOTO', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 6),
+        Text(archived ? 'Archived: existing cover is read-only.' : 'Upload one optimized WebP cover for your guest invitation.', style: const TextStyle(color: Colors.white70)),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CoverMediaScreen(wedding: _wedding!))), icon: const Icon(Icons.image_outlined), label: const Text('Manage Cover Photo')),
+      ]),
     );
   }
 

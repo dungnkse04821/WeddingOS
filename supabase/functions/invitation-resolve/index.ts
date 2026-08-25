@@ -4,6 +4,7 @@ type ResolveRpcResult = {
   error_code?: string;
   retry_after_seconds?: number;
   invitation?: unknown;
+  cover_photo_key?: string | null;
 };
 
 const DEFAULT_ALLOWED_ORIGINS = [
@@ -132,9 +133,23 @@ export async function resolveInvitation(request: Request): Promise<Response> {
       return publicError(status, result.error_code ?? 'INVITATION_UNAVAILABLE', headers);
     }
 
+    let coverPhotoSignedUrl: string | null = null;
+    if (typeof result.cover_photo_key === 'string' && /^weddings\/[0-9a-f-]{36}\/cover\.webp$/i.test(result.cover_photo_key)) {
+      try {
+        const signed = await fetch(`${supabaseUrl}/storage/v1/object/sign/wedding_media/${result.cover_photo_key}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` },
+          body: JSON.stringify({ expiresIn: Number(Deno.env.get('COVER_PHOTO_SIGNED_URL_TTL_SECONDS') ?? '1800') }),
+        });
+        if (signed.ok) {
+          const body = await signed.json() as { signedURL?: string };
+          if (body.signedURL) coverPhotoSignedUrl = `${supabaseUrl}/storage/v1${body.signedURL}`;
+        }
+      } catch (_) { /* Optional media must not break a valid invitation. */ }
+    }
+    const invitation = result.invitation as Record<string, unknown>;
     return new Response(JSON.stringify({
       ok: true,
-      invitation: result.invitation,
+      invitation: { ...invitation, cover_photo_signed_url: coverPhotoSignedUrl },
     }), {
       status: 200,
       headers,
