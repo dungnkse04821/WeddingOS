@@ -63,9 +63,9 @@
 ## Git And Takeover
 
 - Branch: `main`.
-- Closure commit: pending final M7.4 docs commit and push.
-- Push: pending; checkpoint will be updated after the closure commit.
-- Working tree at checkpoint creation: dirty only with intended M7.4 documentation.
+- Closure commit: `638e2b1` (`m7: finalize wedding lifecycle cleanup`).
+- Push: PASS to `origin/main`; the authoritative checkpoint is included by the subsequent `docs: finalize m7 handoff checkpoint` commit.
+- Working tree after final checkpoint delivery: clean, with local HEAD equal to `origin/main` (verified after push).
 - Exact next task: Product Owner review of M7, then separately authorize practical M8 Security & NFR Hardening.
 - STOP boundary: do not start M8 from this checkpoint.
 - Next-harness execution mode: Continue until milestone closure. Do not return intermediate progress reports unless a non-resolvable technical blocker appears.
