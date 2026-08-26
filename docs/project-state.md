@@ -2,7 +2,7 @@
 
 ## Giai đoạn Hiện tại
 
-Implementation -> M6: Storage & Media Foundation — **COMPLETE** (private deterministic Wedding cover storage, organizer upload/replace, and Class-D signed cover rendering delivered.)
+Implementation -> M7: Wedding Lifecycle & Cleanup — **COMPLETE** (archive/read-only lifecycle, trusted permanent deletion, Storage prefix cleanup, and organizer recovery UX delivered.)
 
 ## Tình trạng Dự án
 
@@ -94,6 +94,7 @@ Tập trung vào các mảng cốt lõi:
 *   **M4.3 VietQR Gating:** 🟢 **Hoàn thành (Complete)** — Wedding-level static configuration, authoritative qualified-RSVP Class-D DTO gate, Guest Web conditional display, and organizer configuration delivered; clean DB reset and 362 DB assertions pass, Guest Web tests/lint/build pass, and Flutter test/analyzer pass — Chi tiết tại [22-m4-3-vietqr-gating.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/22-m4-3-vietqr-gating.md)
 *   **M5 Finance Core:** 🟡 **Chưa Hoàn Thành (Incomplete / Needs Fixes)** — 8 Class-C API surfaces (FIN-001 -> FIN-007), strict delete guards, VIEW-based finance aggregates delivered and DB verified. IMPL-CONFLICT-014 and IMPL-CONFLICT-016 resolved. Tuy nhiên Flutter UX implementation hiện tại chỉ là visual scaffolding, chưa được wire với service backend. Cần phải wire toàn bộ và verify service contract trước khi Complete. — Chi tiết tại [23-m5-finance-core.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/23-m5-finance-core.md)
 *   **M6 Storage & Media Foundation:** 🟢 **Hoàn thành (Complete)** — Batch 12 private `wedding_media` bucket, exact WebP cover slot, Storage RLS, no organizer DELETE grant, Flutter upload/replace, D-INV-001 signed cover field, and Guest Web fallback delivered. DB 417 assertions, Flutter 21 tests/analyzer 0 errors and warnings, Guest Web tests/lint/build, and real authenticated Storage HTTP verification pass — Chi tiết tại [24-m6-storage-media-foundation.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/24-m6-storage-media-foundation.md)
+*   **M7 Wedding Lifecycle & Cleanup:** 🟢 **Hoàn thành (Complete)** — Practical M7 implements original-plan M6 lifecycle scope: OWNER archive, ARCHIVED read-only behavior, service-only verified-actor deletion orchestration, recursive private Storage prefix cleanup, cascade-safe physical deletion, Flutter confirmation/recovery UX, and full regression. Batch 15 is latest; DB 438 assertions, Edge 13 tests, Flutter 31 tests/analyzer 0 errors and warnings, Guest Web 9 tests/lint/build, and real Storage HTTP post-condition verification pass — Chi tiết tại [25-m7-wedding-lifecycle-cleanup.md](file:///D:/Dung/Project/VibeCode/WeddingOS/docs/implementation/25-m7-wedding-lifecycle-cleanup.md)
 
 ## Gap Register
 
@@ -116,8 +117,8 @@ Tập trung vào các mảng cốt lõi:
 
 ## Giai đoạn Tiếp theo
 
-Implementation -> Product Owner review after M4.3 VietQR Gating delivery. Finance, Media, push/email/SMS, organizer manual RSVP, and Wedding Delete remain outside the completed checkpoint.
+Implementation -> M8: Security & NFR Hardening design/implementation gate. This is original implementation-plan M7; numbering shifted because practical M6 was Storage & Media and practical M7 was Wedding Lifecycle & Cleanup.
 
 ## Hành động Khuyên dùng tiếp theo
 
-Product Owner review M4.3 delivery. Do not start Finance, Media, push/email/SMS, organizer manual RSVP, or Wedding Delete without approval.
+Product Owner review M7 delivery, then authorize practical M8 Security & NFR Hardening separately. Do not start M8 from this checkpoint.
