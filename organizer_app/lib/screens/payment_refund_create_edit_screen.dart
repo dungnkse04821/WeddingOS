@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../services/finance_service.dart';
+import '../utils/money_text.dart';
 
 class PaymentRefundCreateEditScreen extends StatefulWidget {
   final String budgetItemId;
@@ -89,7 +90,7 @@ class _PaymentRefundCreateEditScreenState extends State<PaymentRefundCreateEditS
                     controller: _amountCtrl,
                     decoration: const InputDecoration(labelText: "Số tiền"),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    validator: (v) => v!.isEmpty ? "Bắt buộc nhập" : null,
+                    validator: MoneyText.validate,
                   ),
                   TextFormField(
                     controller: _nameCtrl,

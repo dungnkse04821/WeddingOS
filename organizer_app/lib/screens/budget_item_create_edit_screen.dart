@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/budget_item_model.dart';
 import '../services/finance_service.dart';
 import '../services/supabase_service.dart';
+import '../utils/money_text.dart';
 
 class BudgetItemCreateEditScreen extends StatefulWidget {
   final BudgetItemModel? item;
@@ -47,8 +48,8 @@ class _BudgetItemCreateEditScreenState extends State<BudgetItemCreateEditScreen>
       final data = {
         'wedding_id': SupabaseService.instance.getSelectedWeddingId(),
         'name': _nameCtrl.text,
-        'estimated_cost': _estCostCtrl.text.isEmpty ? null : double.parse(_estCostCtrl.text),
-        'confirmed_cost': _confCostCtrl.text.isEmpty ? null : double.parse(_confCostCtrl.text),
+        'estimated_cost': MoneyText.normalizeOptional(_estCostCtrl.text, allowZero: true),
+        'confirmed_cost': MoneyText.normalizeOptional(_confCostCtrl.text, allowZero: true),
         'side': _side,
       };
 
@@ -85,11 +86,13 @@ class _BudgetItemCreateEditScreenState extends State<BudgetItemCreateEditScreen>
                     controller: _estCostCtrl,
                     decoration: const InputDecoration(labelText: "Chi phí dự kiến"),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    validator: (value) => MoneyText.validate(value, allowZero: true, optional: true),
                   ),
                   TextFormField(
                     controller: _confCostCtrl,
                     decoration: const InputDecoration(labelText: "Chi phí xác nhận"),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    validator: (value) => MoneyText.validate(value, allowZero: true, optional: true),
                   ),
                   DropdownButtonFormField<String>(
                     value: _side,

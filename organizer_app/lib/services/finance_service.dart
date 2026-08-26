@@ -5,7 +5,13 @@ import '../models/budget_item_model.dart';
 import '../models/installment_model.dart';
 import '../models/payment_model.dart';
 import '../models/refund_model.dart';
+import '../utils/money_text.dart';
 import 'supabase_service.dart';
+
+typedef FinanceRpcInvoker = Future<dynamic> Function(
+  String functionName,
+  Map<String, dynamic> params,
+);
 
 class FinanceServiceException implements Exception {
   final String code;
@@ -14,29 +20,88 @@ class FinanceServiceException implements Exception {
   FinanceServiceException(this.code, this.message);
 
   @override
-  String toString() => 'FinanceServiceException(code: $code, message: $message)';
+  String toString() =>
+      'FinanceServiceException(code: $code, message: $message)';
 }
 
 class FinanceService {
   static final FinanceService instance = FinanceService._internal();
-  FinanceService._internal();
+  FinanceService._internal() : _rpcInvoker = null;
+
+  FinanceService.withRpcInvoker(FinanceRpcInvoker rpcInvoker)
+    : _rpcInvoker = rpcInvoker;
+
+  final FinanceRpcInvoker? _rpcInvoker;
 
   SupabaseClient get _client => SupabaseService.instance.client;
-  
-  void _handleError(dynamic error) {
+
+  Future<dynamic> _rpc(String functionName, Map<String, dynamic> params) {
+    final invoker = _rpcInvoker;
+    if (invoker != null) return invoker(functionName, params);
+    return _client.rpc(functionName, params: params);
+  }
+
+  Never _handleError(Object error) {
+    if (error is FinanceServiceException) throw error;
     if (error is PostgrestException) {
       if (error.message.contains('REQUEST_ID_REUSED')) {
-        throw FinanceServiceException('REQUEST_ID_REUSED', 'Yêu cầu này đã được xử lý trước đó.');
-      } else if (error.message.contains('STALE_IMPACT') || error.message.contains('IMPACT_FINGERPRINT_MISMATCH')) {
-        throw FinanceServiceException('STALE_IMPACT', 'Dữ liệu đã thay đổi, vui lòng làm mới trang.');
+        throw FinanceServiceException(
+          'REQUEST_ID_REUSED',
+          'Yêu cầu này đã được xử lý trước đó.',
+        );
+      } else if (error.message.contains('STALE_STATE')) {
+        throw FinanceServiceException(
+          'STALE_STATE',
+          'Dữ liệu đã thay đổi, vui lòng tải lại trước khi lưu.',
+        );
+      } else if (error.message.contains('STALE_IMPACT') ||
+          error.message.contains('IMPACT_FINGERPRINT_MISMATCH')) {
+        throw FinanceServiceException(
+          'STALE_IMPACT',
+          'Dữ liệu đã thay đổi, vui lòng làm mới trang.',
+        );
       } else if (error.message.contains('HISTORY_GUARD')) {
-        throw FinanceServiceException('HISTORY_GUARD', 'Không thể xoá vì đã có dữ liệu thanh toán.');
+        throw FinanceServiceException(
+          'HISTORY_GUARD',
+          'Không thể xoá vì đã có dữ liệu thanh toán.',
+        );
       } else if (error.message.contains('FINANCE_INTEGRITY')) {
-        throw FinanceServiceException('FINANCE_INTEGRITY', 'Lỗi toàn vẹn dữ liệu tài chính.');
+        throw FinanceServiceException(
+          'FINANCE_INTEGRITY',
+          'Lỗi toàn vẹn dữ liệu tài chính.',
+        );
+      } else if (error.message.contains('INVALID_INPUT')) {
+        throw FinanceServiceException(
+          'INVALID_INPUT',
+          'Dữ liệu tài chính không hợp lệ.',
+        );
       }
-      throw FinanceServiceException('db_error', error.message);
+      throw FinanceServiceException(
+        'SYSTEM_ERROR',
+        'Không thể hoàn tất thao tác tài chính. Vui lòng thử lại.',
+      );
     }
-    throw FinanceServiceException('unknown', error.toString());
+    throw FinanceServiceException(
+      'SYSTEM_ERROR',
+      'Không thể hoàn tất thao tác tài chính. Vui lòng thử lại.',
+    );
+  }
+
+  Map<String, dynamic> _normalizeMoneyFields(
+    Map<String, dynamic> data,
+    Iterable<String> fields, {
+    required bool allowZero,
+  }) {
+    final normalized = Map<String, dynamic>.from(data);
+    for (final field in fields) {
+      final value = normalized[field];
+      if (value == null) continue;
+      if (value is! String) {
+        throw FinanceServiceException('INVALID_MONEY', 'Số tiền không hợp lệ.');
+      }
+      normalized[field] = MoneyText.normalize(value, allowZero: allowZero);
+    }
+    return normalized;
   }
 
   Future<FinanceSummaryModel?> fetchFinanceSummary(String weddingId) async {
@@ -50,7 +115,6 @@ class FinanceService {
       return FinanceSummaryModel.fromJson(data);
     } catch (e) {
       _handleError(e);
-      return null;
     }
   }
 
@@ -64,10 +128,9 @@ class FinanceService {
       return response.map((e) => BudgetItemModel.fromJson(e)).toList();
     } catch (e) {
       _handleError(e);
-      return [];
     }
   }
-  
+
   Future<List<InstallmentModel>> listInstallments(String budgetItemId) async {
     try {
       final response = await _client
@@ -78,10 +141,9 @@ class FinanceService {
       return response.map((e) => InstallmentModel.fromJson(e)).toList();
     } catch (e) {
       _handleError(e);
-      return [];
     }
   }
-  
+
   Future<List<PaymentModel>> listPayments(String budgetItemId) async {
     try {
       final response = await _client
@@ -92,7 +154,6 @@ class FinanceService {
       return response.map((e) => PaymentModel.fromJson(e)).toList();
     } catch (e) {
       _handleError(e);
-      return [];
     }
   }
 
@@ -106,14 +167,20 @@ class FinanceService {
       return response.map((e) => RefundModel.fromJson(e)).toList();
     } catch (e) {
       _handleError(e);
-      return [];
     }
   }
 
   // CUD Budget Items
   Future<void> createBudgetItem(Map<String, dynamic> data) async {
     try {
-      await _client.from('budget_items').insert(data);
+      await _client
+          .from('budget_items')
+          .insert(
+            _normalizeMoneyFields(data, const [
+              'estimated_cost',
+              'confirmed_cost',
+            ], allowZero: true),
+          );
     } catch (e) {
       _handleError(e);
     }
@@ -121,7 +188,15 @@ class FinanceService {
 
   Future<void> updateBudgetItem(String id, Map<String, dynamic> data) async {
     try {
-      await _client.from('budget_items').update(data).eq('id', id);
+      await _client
+          .from('budget_items')
+          .update(
+            _normalizeMoneyFields(data, const [
+              'estimated_cost',
+              'confirmed_cost',
+            ], allowZero: true),
+          )
+          .eq('id', id);
     } catch (e) {
       _handleError(e);
     }
@@ -138,7 +213,11 @@ class FinanceService {
   // CUD Installments (Direct)
   Future<void> createInstallment(Map<String, dynamic> data) async {
     try {
-      await _client.from('installments').insert(data);
+      await _client
+          .from('installments')
+          .insert(
+            _normalizeMoneyFields(data, const ['amount'], allowZero: false),
+          );
     } catch (e) {
       _handleError(e);
     }
@@ -146,7 +225,12 @@ class FinanceService {
 
   Future<void> updateInstallment(String id, Map<String, dynamic> data) async {
     try {
-      await _client.from('installments').update(data).eq('id', id);
+      await _client
+          .from('installments')
+          .update(
+            _normalizeMoneyFields(data, const ['amount'], allowZero: false),
+          )
+          .eq('id', id);
     } catch (e) {
       _handleError(e);
     }
@@ -162,27 +246,33 @@ class FinanceService {
 
   // FIN-007 Preview & Commit Installment
   Future<Map<String, dynamic>> previewInstallmentCompound(
-      String installmentId, String amount, String dueDate) async {
+    String installmentId,
+    String amount,
+    String dueDate,
+  ) async {
     try {
-      return await _client.rpc('preview_installment_compound', params: {
+      return await _rpc('preview_installment_compound', {
         'p_installment_id': installmentId,
-        'p_new_amount': double.parse(amount), // Note: Postgres RPC takes numeric.
-        'p_new_due_date': dueDate
+        'p_new_amount': MoneyText.normalize(amount),
+        'p_new_due_date': dueDate,
       });
     } catch (e) {
       _handleError(e);
-      return {};
     }
   }
 
   Future<void> commitInstallmentCompound(
-      String installmentId, String impactFingerprint, String amount, String dueDate) async {
+    String installmentId,
+    String impactFingerprint,
+    String amount,
+    String dueDate,
+  ) async {
     try {
-      await _client.rpc('commit_installment_compound', params: {
+      await _rpc('commit_installment_compound', {
         'p_installment_id': installmentId,
         'p_impact_fingerprint': impactFingerprint,
-        'p_new_amount': double.parse(amount),
-        'p_new_due_date': dueDate
+        'p_new_amount': MoneyText.normalize(amount),
+        'p_new_due_date': dueDate,
       });
     } catch (e) {
       _handleError(e);
@@ -201,15 +291,15 @@ class FinanceService {
     required String requestId,
   }) async {
     try {
-      await _client.rpc('create_payment', params: {
+      await _rpc('create_payment', {
         'p_request_id': requestId,
         'p_budget_item_id': budgetItemId,
         'p_installment_id': installmentId,
-        'p_amount': double.parse(amount),
+        'p_amount': MoneyText.normalize(amount),
         'p_payment_date': paymentDate,
         'p_payer_display_name': payerDisplayName,
         'p_payer_wedding_member_id': payerWeddingMemberId,
-        'p_notes': notes
+        'p_notes': notes,
       });
     } catch (e) {
       _handleError(e);
@@ -218,20 +308,24 @@ class FinanceService {
 
   Future<void> editPayment({
     required String paymentId,
+    String? installmentId,
     required String amount,
     required String paymentDate,
-    required String payerDisplayName,
+    String? payerDisplayName,
     String? payerWeddingMemberId,
     String? notes,
+    required DateTime expectedUpdatedAt,
   }) async {
     try {
-      await _client.rpc('edit_payment', params: {
+      await _rpc('edit_payment', {
         'p_payment_id': paymentId,
-        'p_new_amount': double.parse(amount),
-        'p_new_payment_date': paymentDate,
-        'p_new_payer_display_name': payerDisplayName,
-        'p_new_payer_wedding_member_id': payerWeddingMemberId,
-        'p_new_notes': notes
+        'p_installment_id': installmentId,
+        'p_amount': MoneyText.normalize(amount),
+        'p_payment_date': paymentDate,
+        'p_payer_wedding_member_id': payerWeddingMemberId,
+        'p_payer_display_name': payerDisplayName,
+        'p_notes': notes,
+        'p_expected_updated_at': expectedUpdatedAt.toUtc().toIso8601String(),
       });
     } catch (e) {
       _handleError(e);
@@ -240,9 +334,9 @@ class FinanceService {
 
   Future<void> voidPayment(String paymentId, String voidReason) async {
     try {
-      await _client.rpc('void_payment', params: {
+      await _rpc('void_payment', {
         'p_payment_id': paymentId,
-        'p_void_reason': voidReason
+        'p_void_reason': voidReason,
       });
     } catch (e) {
       _handleError(e);
@@ -259,13 +353,13 @@ class FinanceService {
     required String requestId,
   }) async {
     try {
-      await _client.rpc('create_refund', params: {
+      await _rpc('create_refund', {
         'p_request_id': requestId,
         'p_budget_item_id': budgetItemId,
-        'p_amount': double.parse(amount),
+        'p_amount': MoneyText.normalize(amount),
         'p_refund_date': refundDate,
         'p_receiver': receiver,
-        'p_notes': notes
+        'p_notes': notes,
       });
     } catch (e) {
       _handleError(e);
@@ -278,14 +372,16 @@ class FinanceService {
     required String refundDate,
     required String receiver,
     String? notes,
+    required DateTime expectedUpdatedAt,
   }) async {
     try {
-      await _client.rpc('edit_refund', params: {
+      await _rpc('edit_refund', {
         'p_refund_id': refundId,
-        'p_new_amount': double.parse(amount),
-        'p_new_refund_date': refundDate,
-        'p_new_receiver': receiver,
-        'p_new_notes': notes
+        'p_amount': MoneyText.normalize(amount),
+        'p_refund_date': refundDate,
+        'p_receiver': receiver,
+        'p_notes': notes,
+        'p_expected_updated_at': expectedUpdatedAt.toUtc().toIso8601String(),
       });
     } catch (e) {
       _handleError(e);
@@ -294,9 +390,9 @@ class FinanceService {
 
   Future<void> voidRefund(String refundId, String voidReason) async {
     try {
-      await _client.rpc('void_refund', params: {
+      await _rpc('void_refund', {
         'p_refund_id': refundId,
-        'p_void_reason': voidReason
+        'p_void_reason': voidReason,
       });
     } catch (e) {
       _handleError(e);

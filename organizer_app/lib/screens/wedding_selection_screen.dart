@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../services/supabase_service.dart';
+import '../utils/money_text.dart';
 import 'home_screen.dart';
 
 class WeddingSelectionScreen extends StatefulWidget {
@@ -384,8 +385,7 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
       _error = null;
     });
 
-    final budgetStr = _budgetController.text.trim();
-    final double? targetBudget = budgetStr.isNotEmpty ? double.tryParse(budgetStr) : null;
+    final targetBudget = MoneyText.normalizeOptional(_budgetController.text);
 
     try {
       await SupabaseService.instance.createWedding(
@@ -526,15 +526,7 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
                   ),
                 ),
                 keyboardType: TextInputType.number,
-                validator: (val) {
-                  if (val != null && val.isNotEmpty) {
-                    final budget = double.tryParse(val);
-                    if (budget == null || budget <= 0) {
-                      return 'Budget must be a positive number';
-                    }
-                  }
-                  return null;
-                },
+                validator: (value) => MoneyText.validate(value, optional: true),
               ),
               const SizedBox(height: 16),
 

@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../foundation/constants.dart';
+import '../utils/money_text.dart';
 import '../models/task_model.dart';
 import '../models/primary_group_model.dart';
 import '../models/invitation_party_model.dart';
@@ -122,7 +123,7 @@ class SupabaseService {
     DateTime? exactDate,
     int? expectedYear,
     int? expectedMonth,
-    double? targetBudget,
+    String? targetBudget,
   }) async {
     final response = await client.rpc(
       'create_wedding',
@@ -133,7 +134,7 @@ class SupabaseService {
         'p_exact_date': exactDate?.toIso8601String().split('T').first,
         'p_expected_year': expectedYear,
         'p_expected_month': expectedMonth,
-        'p_target_budget': targetBudget,
+        'p_target_budget': targetBudget == null ? null : MoneyText.normalize(targetBudget),
       },
     );
 

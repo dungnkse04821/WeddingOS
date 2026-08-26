@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/installment_model.dart';
 import '../services/finance_service.dart';
+import '../utils/money_text.dart';
 
 class InstallmentCreateEditScreen extends StatefulWidget {
   final String budgetItemId;
@@ -43,7 +44,7 @@ class _InstallmentCreateEditScreenState extends State<InstallmentCreateEditScree
       if (widget.item == null) {
         await FinanceService.instance.createInstallment({
           'budget_item_id': widget.budgetItemId,
-          'amount': double.parse(_amountCtrl.text),
+          'amount': MoneyText.normalize(_amountCtrl.text),
           'due_date': _dueDate.toIso8601String().split('T').first,
         });
         if (mounted) Navigator.pop(context);
@@ -136,7 +137,7 @@ class _InstallmentCreateEditScreenState extends State<InstallmentCreateEditScree
                     controller: _amountCtrl,
                     decoration: const InputDecoration(labelText: "Số tiền"),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    validator: (v) => v!.isEmpty ? "Bắt buộc nhập" : null,
+                    validator: MoneyText.validate,
                   ),
                   ListTile(
                     title: const Text("Ngày đến hạn"),
