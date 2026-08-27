@@ -6,6 +6,8 @@ Status:
 - M8.1A Finance Contract Correctness: **COMPLETE**
 - M8.1B Wedding Concurrency + DELETING Read Matrix: **COMPLETE**
 - M8.1C Map Validation + Function Hygiene: **COMPLETE**
+- M8.1: **COMPLETE**
+- M8.2A Edge Resource Bounds & Failure Envelopes: **COMPLETE**
 
 Date: 2026-08-26
 
@@ -286,7 +288,6 @@ Defects fixed during verification:
 
 M8 remains IN PROGRESS. This slice does not close:
 
-- Edge request/timeout/error hardening;
 - full security matrix/provider evidence;
 - NFR benchmarks and evidence-based indexing;
 - CI, staging, CSP, deployment, observability, or recovery gates;
@@ -370,3 +371,102 @@ regression uses the existing authenticated UPDATE path because historical Batch
 04 grants do not include direct Guest INSERT; and the Edge smoke command includes
 its required environment-read permission. No unrelated Guest grant or Edge
 behavior was changed.
+
+## M8.2A Edge Resource Bounds & Failure Envelopes
+
+This slice closes `M8-P1-005` and, as a directly related narrow configuration
+bound, `M8-P2-007`. It changes no database business function, Class-D
+authorization rule, Wedding lifecycle rule, route inventory, or Guest DTO.
+
+### Shared Safety Boundary
+
+`supabase/functions/_shared/edge_safety.ts` provides only the common primitives
+needed by the three delivered Edge handlers:
+
+- streamed byte counting with a declared-length fast rejection and an actual
+  body-byte limit that does not trust `Content-Length`;
+- bounded UTF-8 JSON parsing for inbound and provider response bodies;
+- `AbortController` deadlines around every outbound provider `fetch`;
+- bounded integer environment parsing with safe fallback;
+- server-generated UUID correlation IDs returned as `X-Request-ID`.
+
+No framework, persistence, telemetry backend, incoming request-ID trust, or new
+public error taxonomy was added.
+
+### Resource Limits
+
+| Boundary | Limit |
+| --- | --- |
+| Invitation resolve request | 2 KiB |
+| Invitation RSVP request | 32 KiB |
+| Wedding delete request | 2 KiB |
+| RSVP EventResponses | 20, reject rather than truncate |
+| Auth response | 64 KiB |
+| Storage list response | 512 KiB |
+| DB/bridge response | 1 MiB |
+| Signed-URL response | 64 KiB |
+
+The existing RSVP optional-field bounds remain: guest message and note 1,000
+characters, dietary information 500 characters, at most 20 companion names,
+and at most 100 characters per companion name. The 43-character invitation
+token and Wedding delete's minimal `wedding_id` request remain unchanged.
+
+Touched numeric configuration now fails closed to its existing default:
+
+- resolve rate limit: default 30, accepted range 1-300;
+- RSVP rate limit: default 10, accepted range 1-100;
+- signed cover TTL: default 1,800 seconds, accepted range 60-3,600 seconds.
+
+Rate-limit dimensions and policy were not redesigned.
+
+### Provider Deadlines and Failure Envelopes
+
+- Supabase Auth `/auth/v1/user`: 5 seconds;
+- PostgREST/`edge_api` calls: 8 seconds;
+- Storage list/delete: 8 seconds per provider call;
+- Storage signed-cover request: 5 seconds.
+
+Invitation resolve retains `TEMPORARY_ERROR`, RSVP retains
+`TEMPORARY_UNAVAILABLE`, and wedding deletion retains
+`DELETE_RETRY_REQUIRED` after lifecycle begin/cleanup/finalization failures.
+Explicit domain 4xx and rate-limit responses are unchanged. Every route now has
+a final exception boundary; no abort type, URL, SQLSTATE, RPC name, stack, JWT,
+invitation token, RSVP body, service key, or signed URL is echoed or logged.
+
+Wedding deletion still authenticates the organizer, derives the actor from the
+verified Auth user, begins through the service-only bridge, cleans the
+authoritative prefix, verifies it empty, and finalizes through the service-only
+bridge. List/delete/finalize failures leave the Wedding `DELETING`; no rollback
+to `ACTIVE` or `ARCHIVED` was introduced.
+
+### Verification Evidence
+
+- Deno 2.9.5 full Edge suite: 4 files / 30 tests / 0 failures;
+- body tests cover normal and oversized resolve/RSVP/delete requests without
+  trusting `Content-Length`;
+- RSVP tests accept 20 responses and reject 21;
+- deterministic injected scheduling proves deadline abort and timer cleanup;
+- Auth, DB, Storage list, Storage delete, and finalization failure paths return
+  bounded envelopes without raw details;
+- clean `npx supabase db reset`: PASS through Batch 17;
+- full pgTAP: 15 files / 529 assertions / 0 failures;
+- real local Edge/provider smoke: invitation resolve HTTP 200, RSVP HTTP 200,
+  Wedding delete HTTP 200, fresh delete-prefix entries 0, deleted Wedding rows
+  0, and preserved Auth users 1;
+- Guest Web smoke: 2 test files / 9 tests / 0 failures.
+
+Security review passed: body and provider-response processing is bounded; all
+outbound calls have deadlines; service-role values remain inside Edge; Class-D
+and OWNER authorization are unchanged; no route was added; cleanup targets
+remain server-derived; errors remain small and no-store; and no changed code
+logs secrets, tokens, PII, provider responses, or raw request bodies.
+
+Defects fixed during verification were limited to implementation mechanics: the
+Deno Windows timer-handle type was made runtime-neutral, bounded bridge JSON was
+narrowed explicitly, and the disposable provider harness now removes RSVP event
+responses before fixture teardown. No production database or Guest Web change
+was required.
+
+M8 remains IN PROGRESS. AUTH_LOST/build-time Flutter configuration, Guest Web
+CSP, CI/staging, NFR benchmarks, full security-matrix evidence, broad
+observability, and unrelated rate-limit policy remain outside this slice.

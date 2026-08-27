@@ -1,3 +1,5 @@
+import { BoundedBodyError, boundedInteger, createCorrelationId, fetchWithDeadline, readBoundedJson, readBoundedResponseJson } from '../_shared/edge_safety.ts';
+
 type ResolveRpcResult = {
   ok: boolean;
   http_status?: number;
@@ -13,13 +15,20 @@ const DEFAULT_ALLOWED_ORIGINS = [
 ];
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+export const RESOLVE_BODY_LIMIT_BYTES = 2 * 1024;
+export const DATABASE_TIMEOUT_MS = 8_000;
+export const SIGNED_URL_TIMEOUT_MS = 5_000;
+const AUTHORITY_RESPONSE_LIMIT_BYTES = 1024 * 1024;
+const SIGNED_URL_RESPONSE_LIMIT_BYTES = 64 * 1024;
 
 export function parseAllowedOrigins(value: string | undefined): Set<string> {
   const configured = value
     ?.split(',')
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0);
-  return new Set(configured && configured.length > 0 ? configured : DEFAULT_ALLOWED_ORIGINS);
+  return new Set(
+    configured && configured.length > 0 ? configured : DEFAULT_ALLOWED_ORIGINS,
+  );
 }
 
 export function isValidRawToken(value: unknown): value is string {
@@ -34,7 +43,10 @@ export async function sha256Hex(value: string): Promise<string> {
     .join('');
 }
 
-export function securityHeaders(origin: string | null, allowedOrigins: Set<string>): Headers {
+export function securityHeaders(
+  origin: string | null,
+  allowedOrigins: Set<string>,
+): Headers {
   const headers = new Headers({
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
@@ -53,7 +65,11 @@ export function securityHeaders(origin: string | null, allowedOrigins: Set<strin
   return headers;
 }
 
-export function publicError(status: number, code: string, headers: Headers): Response {
+export function publicError(
+  status: number,
+  code: string,
+  headers: Headers,
+): Response {
   return new Response(JSON.stringify({ ok: false, error_code: code }), {
     status,
     headers,
@@ -61,17 +77,39 @@ export function publicError(status: number, code: string, headers: Headers): Res
 }
 
 export function networkSignal(request: Request): string {
-  const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+  const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]
+    ?.trim();
   return request.headers.get('cf-connecting-ip')?.trim() ||
     forwardedFor ||
     'unknown-network';
 }
 
 export async function resolveInvitation(request: Request): Promise<Response> {
-  const allowedOrigins = parseAllowedOrigins(Deno.env.get('GUEST_WEB_ALLOWED_ORIGINS'));
-  const origin = request.headers.get('origin');
-  const headers = securityHeaders(origin, allowedOrigins);
+  let headers = securityHeaders(null, new Set());
+  try {
+    const allowedOrigins = parseAllowedOrigins(
+      Deno.env.get('GUEST_WEB_ALLOWED_ORIGINS'),
+    );
+    const origin = request.headers.get('origin');
+    headers = securityHeaders(origin, allowedOrigins);
+    headers.set('X-Request-ID', createCorrelationId());
+    return await resolveInvitationCore(
+      request,
+      allowedOrigins,
+      origin,
+      headers,
+    );
+  } catch (_) {
+    return publicError(503, 'TEMPORARY_ERROR', headers);
+  }
+}
 
+async function resolveInvitationCore(
+  request: Request,
+  allowedOrigins: Set<string>,
+  origin: string | null,
+  headers: Headers,
+): Promise<Response> {
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers });
   }
@@ -86,9 +124,15 @@ export async function resolveInvitation(request: Request): Promise<Response> {
 
   let rawToken: unknown;
   try {
-    const body = await request.json();
+    const body = await readBoundedJson(
+      request,
+      RESOLVE_BODY_LIMIT_BYTES,
+    ) as Record<string, unknown>;
     rawToken = body?.raw_token;
-  } catch (_) {
+  } catch (error) {
+    if (error instanceof BoundedBodyError && error.kind === 'too_large') {
+      return publicError(413, 'INVITATION_UNAVAILABLE', headers);
+    }
     return publicError(404, 'INVITATION_UNAVAILABLE', headers);
   }
 
@@ -104,56 +148,104 @@ export async function resolveInvitation(request: Request): Promise<Response> {
 
   try {
     const networkHash = await sha256Hex(`D-INV-001:${networkSignal(request)}`);
-    const rpcResponse = await fetch(`${supabaseUrl}/rest/v1/rpc/resolve_public_invitation`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept-Profile': 'edge_api',
-        'Content-Profile': 'edge_api',
-        'apikey': serviceRoleKey,
-        'Authorization': `Bearer ${serviceRoleKey}`,
+    const rpcResponse = await fetchWithDeadline(
+      fetch,
+      `${supabaseUrl}/rest/v1/rpc/resolve_public_invitation`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept-Profile': 'edge_api',
+          'Content-Profile': 'edge_api',
+          'apikey': serviceRoleKey,
+          'Authorization': `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({
+          p_raw_token: rawToken,
+          p_limiter_key: `D-INV-001:ip:${networkHash}`,
+          p_rate_limit_threshold: boundedInteger(
+            Deno.env.get('CLASS_D_RESOLVE_RATE_LIMIT'),
+            30,
+            1,
+            300,
+          ),
+        }),
       },
-      body: JSON.stringify({
-        p_raw_token: rawToken,
-        p_limiter_key: `D-INV-001:ip:${networkHash}`,
-        p_rate_limit_threshold: Number(Deno.env.get('CLASS_D_RESOLVE_RATE_LIMIT') ?? '30'),
-      }),
-    });
+      DATABASE_TIMEOUT_MS,
+    );
 
     if (!rpcResponse.ok) {
       return publicError(503, 'TEMPORARY_ERROR', headers);
     }
 
-    const result = await rpcResponse.json() as ResolveRpcResult;
+    const result = await readBoundedResponseJson(
+      rpcResponse,
+      AUTHORITY_RESPONSE_LIMIT_BYTES,
+    ) as ResolveRpcResult;
     if (!result.ok) {
       const status = result.http_status ?? 404;
       if (status === 429 && result.retry_after_seconds) {
         headers.set('Retry-After', String(result.retry_after_seconds));
       }
-      return publicError(status, result.error_code ?? 'INVITATION_UNAVAILABLE', headers);
+      return publicError(
+        status,
+        result.error_code ?? 'INVITATION_UNAVAILABLE',
+        headers,
+      );
     }
 
     let coverPhotoSignedUrl: string | null = null;
-    if (typeof result.cover_photo_key === 'string' && /^weddings\/[0-9a-f-]{36}\/cover\.webp$/i.test(result.cover_photo_key)) {
+    if (
+      typeof result.cover_photo_key === 'string' &&
+      /^weddings\/[0-9a-f-]{36}\/cover\.webp$/i.test(result.cover_photo_key)
+    ) {
       try {
-        const signed = await fetch(`${supabaseUrl}/storage/v1/object/sign/wedding_media/${result.cover_photo_key}`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` },
-          body: JSON.stringify({ expiresIn: Number(Deno.env.get('COVER_PHOTO_SIGNED_URL_TTL_SECONDS') ?? '1800') }),
-        });
+        const signed = await fetchWithDeadline(
+          fetch,
+          `${supabaseUrl}/storage/v1/object/sign/wedding_media/${result.cover_photo_key}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: serviceRoleKey,
+              Authorization: `Bearer ${serviceRoleKey}`,
+            },
+            body: JSON.stringify({
+              expiresIn: boundedInteger(
+                Deno.env.get('COVER_PHOTO_SIGNED_URL_TTL_SECONDS'),
+                1800,
+                60,
+                3600,
+              ),
+            }),
+          },
+          SIGNED_URL_TIMEOUT_MS,
+        );
         if (signed.ok) {
-          const body = await signed.json() as { signedURL?: string };
-          if (body.signedURL) coverPhotoSignedUrl = `${supabaseUrl}/storage/v1${body.signedURL}`;
+          const body = await readBoundedResponseJson(
+            signed,
+            SIGNED_URL_RESPONSE_LIMIT_BYTES,
+          ) as { signedURL?: string };
+          if (body.signedURL) {
+            coverPhotoSignedUrl = `${supabaseUrl}/storage/v1${body.signedURL}`;
+          }
         }
       } catch (_) { /* Optional media must not break a valid invitation. */ }
     }
     const invitation = result.invitation as Record<string, unknown>;
-    return new Response(JSON.stringify({
-      ok: true,
-      invitation: { ...invitation, cover_photo_signed_url: coverPhotoSignedUrl },
-    }), {
-      status: 200,
-      headers,
-    });
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        invitation: {
+          ...invitation,
+          cover_photo_signed_url: coverPhotoSignedUrl,
+        },
+      }),
+      {
+        status: 200,
+        headers,
+      },
+    );
   } catch (_) {
     return publicError(503, 'TEMPORARY_ERROR', headers);
   }
