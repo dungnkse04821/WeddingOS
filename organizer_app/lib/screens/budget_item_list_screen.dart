@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/budget_item_model.dart';
 import '../services/finance_service.dart';
 import '../services/supabase_service.dart';
@@ -37,8 +38,9 @@ class _BudgetItemListScreenState extends State<BudgetItemListScreen> {
         _items = items;
       });
     } catch (e) {
+      final failure = await SupabaseService.instance.handleOperationalError(e);
       setState(() {
-        _error = e.toString();
+        _error = failure.message;
       });
     } finally {
       setState(() {
@@ -52,7 +54,11 @@ class _BudgetItemListScreenState extends State<BudgetItemListScreen> {
       await FinanceService.instance.deleteBudgetItem(id);
       _loadItems();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      final failure = await SupabaseService.instance.handleOperationalError(e);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(failure.message)));
+      }
     }
   }
 
@@ -62,75 +68,119 @@ class _BudgetItemListScreenState extends State<BudgetItemListScreen> {
       appBar: AppBar(
         title: const Text("Hạng mục Tài chính"),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadItems,
-          )
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadItems),
         ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(child: Text("Error: $_error"))
-              : ListView.builder(
-                  itemCount: _items.length,
-                  itemBuilder: (context, index) {
-                    final item = _items[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      child: ExpansionTile(
-                        title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text("Dự kiến: ${item.estimatedCost ?? '0.00'} | Xác nhận: ${item.confirmedCost ?? '0.00'}"),
+          ? Center(child: Text("Error: $_error"))
+          : ListView.builder(
+              itemCount: _items.length,
+              itemBuilder: (context, index) {
+                final item = _items[index];
+                return Card(
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: ExpansionTile(
+                    title: Text(
+                      item.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      "Dự kiến: ${item.estimatedCost ?? '0.00'} | Xác nhận: ${item.confirmedCost ?? '0.00'}",
+                    ),
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.push(context, MaterialPageRoute(builder: (context) => BudgetItemCreateEditScreen(item: item))).then((_) => _loadItems());
-                                },
-                                child: const Text("Sửa hạng mục"),
-                              ),
-                              TextButton(
-                                onPressed: () => _deleteItem(item.id),
-                                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                                child: const Text("Xoá"),
-                              ),
-                            ],
+                          TextButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      BudgetItemCreateEditScreen(item: item),
+                                ),
+                              ).then((_) => _loadItems());
+                            },
+                            child: const Text("Sửa hạng mục"),
                           ),
-                          const Divider(),
-                          Wrap(
-                            spacing: 8,
-                            children: [
-                              ElevatedButton(
-                                onPressed: () {
-                                  Navigator.push(context, MaterialPageRoute(builder: (context) => InstallmentCreateEditScreen(budgetItemId: item.id))).then((_) => _loadItems());
-                                },
-                                child: const Text("+ Đợt chi"),
-                              ),
-                              ElevatedButton(
-                                onPressed: () {
-                                  Navigator.push(context, MaterialPageRoute(builder: (context) => PaymentRefundCreateEditScreen(budgetItemId: item.id, isRefund: false))).then((_) => _loadItems());
-                                },
-                                child: const Text("+ Thanh toán"),
-                              ),
-                              ElevatedButton(
-                                onPressed: () {
-                                  Navigator.push(context, MaterialPageRoute(builder: (context) => PaymentRefundCreateEditScreen(budgetItemId: item.id, isRefund: true))).then((_) => _loadItems());
-                                },
-                                child: const Text("+ Hoàn tiền"),
-                              ),
-                            ],
+                          TextButton(
+                            onPressed: () => _deleteItem(item.id),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.red,
+                            ),
+                            child: const Text("Xoá"),
                           ),
-                          const SizedBox(height: 8),
                         ],
                       ),
-                    );
-                  },
-                ),
+                      const Divider(),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          ElevatedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      InstallmentCreateEditScreen(
+                                        budgetItemId: item.id,
+                                      ),
+                                ),
+                              ).then((_) => _loadItems());
+                            },
+                            child: const Text("+ Đợt chi"),
+                          ),
+                          ElevatedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      PaymentRefundCreateEditScreen(
+                                        budgetItemId: item.id,
+                                        isRefund: false,
+                                      ),
+                                ),
+                              ).then((_) => _loadItems());
+                            },
+                            child: const Text("+ Thanh toán"),
+                          ),
+                          ElevatedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      PaymentRefundCreateEditScreen(
+                                        budgetItemId: item.id,
+                                        isRefund: true,
+                                      ),
+                                ),
+                              ).then((_) => _loadItems());
+                            },
+                            child: const Text("+ Hoàn tiền"),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
+                );
+              },
+            ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const BudgetItemCreateEditScreen())).then((_) => _loadItems());
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const BudgetItemCreateEditScreen(),
+            ),
+          ).then((_) => _loadItems());
         },
         child: const Icon(Icons.add),
       ),

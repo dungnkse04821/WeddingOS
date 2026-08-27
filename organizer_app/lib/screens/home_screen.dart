@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../foundation/app_error.dart';
 import '../services/supabase_service.dart';
 import '../models/task_model.dart';
 import 'auth_screen.dart';
@@ -46,14 +48,13 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      // 1. Fetch wedding details via RLS SELECT on public.weddings
-      final wResponse = await SupabaseService.instance.client
+      final recoveryMetadata = await SupabaseService.instance.client
           .from('weddings')
-          .select()
+          .select('id, name, status')
           .eq('id', selectedId)
           .maybeSingle();
 
-      if (wResponse == null) {
+      if (recoveryMetadata == null) {
         await SupabaseService.instance.clearSelectedWedding();
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
@@ -64,15 +65,28 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      // 2. Fetch wedding members via RLS SELECT on public.wedding_members
-      final mResponse = await SupabaseService.instance.client
+      final status = recoveryMetadata['status'] as String? ?? 'ACTIVE';
+      final wResponse = status == 'DELETING'
+          ? recoveryMetadata
+          : await SupabaseService.instance.client
+                .from('weddings')
+                .select()
+                .eq('id', selectedId)
+                .single();
+      var memberQuery = SupabaseService.instance.client
           .from('wedding_members')
-          .select('id, user_id, display_name, profile_email, role, status')
-          .order('created_at', ascending: true);
+          .select('id, user_id, display_name, profile_email, role, status');
+      if (status == 'DELETING') {
+        memberQuery = memberQuery.eq(
+          'user_id',
+          SupabaseService.instance.currentUser!.id,
+        );
+      }
+      final mResponse = await memberQuery.order('created_at', ascending: true);
 
-      // 3. Fetch tasks to compute progress metrics
       List<TaskModel> taskList = [];
-      if (wResponse['initial_plan_generated_at'] != null) {
+      if (status != 'DELETING' &&
+          wResponse['initial_plan_generated_at'] != null) {
         taskList = await SupabaseService.instance.fetchTasks(selectedId);
       }
 
@@ -83,10 +97,24 @@ class _HomeScreenState extends State<HomeScreen> {
         _loading = false;
       });
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Failed to load workspace: $e';
-        _loading = false;
-      });
+      final failure = await SupabaseService.instance.handleOperationalError(e);
+      if (!mounted) return;
+      if (failure.kind == AppErrorKind.accessRevoked) {
+        await SupabaseService.instance.clearSelectedWedding();
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const WeddingSelectionScreen()),
+            (route) => false,
+          );
+        }
+        return;
+      }
+      if (failure.kind != AppErrorKind.authLost) {
+        setState(() {
+          _errorMessage = failure.message;
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -103,14 +131,19 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final weddingName = SupabaseService.instance.getSelectedWeddingName() ?? 'Wedding Workspace';
+    final weddingName =
+        SupabaseService.instance.getSelectedWeddingName() ??
+        'Wedding Workspace';
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F0C1B),
       appBar: AppBar(
         title: Text(
           weddingName,
-          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -120,7 +153,9 @@ class _HomeScreenState extends State<HomeScreen> {
             tooltip: 'Switch Workspace',
             onPressed: () {
               Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const WeddingSelectionScreen()),
+                MaterialPageRoute(
+                  builder: (_) => const WeddingSelectionScreen(),
+                ),
               );
             },
           ),
@@ -155,13 +190,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
           _loading
               ? const Center(
-                  child: CircularProgressIndicator(
-                    color: Color(0xFF6B4EFF),
-                  ),
+                  child: CircularProgressIndicator(color: Color(0xFF6B4EFF)),
                 )
               : _errorMessage != null
-                  ? _buildErrorState()
-                  : _buildDashboard(theme),
+              ? _buildErrorState()
+              : _buildDashboard(theme),
         ],
       ),
     );
@@ -174,7 +207,11 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline_rounded, size: 64, color: Colors.redAccent),
+            const Icon(
+              Icons.error_outline_rounded,
+              size: 64,
+              color: Colors.redAccent,
+            ),
             const SizedBox(height: 16),
             Text(
               _errorMessage!,
@@ -199,23 +236,27 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildDashboard(ThemeData theme) {
     if (_wedding == null) return const SizedBox.shrink();
 
-    final targetBudget = _wedding!['target_budget'] != null 
+    final targetBudget = _wedding!['target_budget'] != null
         ? '${_wedding!['target_budget']} VND'
         : 'Not set';
-    
+
     String dateStr = 'Not set';
     if (_wedding!['exact_date'] != null) {
       dateStr = _wedding!['exact_date'] as String;
-    } else if (_wedding!['expected_year'] != null && _wedding!['expected_month'] != null) {
-      dateStr = 'Expected: ${_wedding!['expected_month']}/${_wedding!['expected_year']}';
+    } else if (_wedding!['expected_year'] != null &&
+        _wedding!['expected_month'] != null) {
+      dateStr =
+          'Expected: ${_wedding!['expected_month']}/${_wedding!['expected_year']}';
     }
 
     final timezone = _wedding!['timezone'] as String? ?? 'Asia/Ho_Chi_Minh';
-    final culturalContext = _wedding!['cultural_context'] as String? ?? 'TUY_CHON';
+    final culturalContext =
+        _wedding!['cultural_context'] as String? ?? 'TUY_CHON';
     final status = _wedding!['status'] as String? ?? 'ACTIVE';
     final currentUserId = SupabaseService.instance.currentUser?.id;
     final isOwner = _members.any(
-      (member) => member['user_id'] == currentUserId &&
+      (member) =>
+          member['user_id'] == currentUserId &&
           member['status'] == 'ACTIVE' &&
           member['role'] == 'OWNER',
     );
@@ -241,20 +282,33 @@ class _HomeScreenState extends State<HomeScreen> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.greenAccent.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.greenAccent.withOpacity(0.2)),
+                  border: Border.all(
+                    color: Colors.greenAccent.withOpacity(0.2),
+                  ),
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.wifi_rounded, color: Colors.greenAccent, size: 14),
+                    Icon(
+                      Icons.wifi_rounded,
+                      color: Colors.greenAccent,
+                      size: 14,
+                    ),
                     SizedBox(width: 6),
                     Text(
                       'Tenant Isolated (RLS ACTIVE)',
-                      style: TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: Colors.greenAccent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
@@ -311,7 +365,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                _buildMetadataRow('Wedding ID', _wedding!['id'] as String, isCopyable: true),
+                _buildMetadataRow(
+                  'Wedding ID',
+                  _wedding!['id'] as String,
+                  isCopyable: true,
+                ),
                 const Divider(color: Colors.white10),
                 _buildMetadataRow('Status', status, color: Colors.greenAccent),
                 const Divider(color: Colors.white10),
@@ -350,7 +408,10 @@ class _HomeScreenState extends State<HomeScreen> {
               final isOwner = role == 'OWNER';
 
               return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.02),
                   borderRadius: BorderRadius.circular(14),
@@ -359,11 +420,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Row(
                   children: [
                     CircleAvatar(
-                      backgroundColor: isOwner ? const Color(0xFFFF5E7E) : const Color(0xFF6B4EFF),
+                      backgroundColor: isOwner
+                          ? const Color(0xFFFF5E7E)
+                          : const Color(0xFF6B4EFF),
                       radius: 20,
                       child: Text(
-                        displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        displayName.isNotEmpty
+                            ? displayName[0].toUpperCase()
+                            : 'U',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -373,26 +441,41 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           Text(
                             displayName,
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           if (email.isNotEmpty)
                             Text(
                               email,
-                              style: const TextStyle(color: Colors.white38, fontSize: 12),
+                              style: const TextStyle(
+                                color: Colors.white38,
+                                fontSize: 12,
+                              ),
                             ),
                         ],
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: (isOwner ? const Color(0xFFFF5E7E) : const Color(0xFF6B4EFF)).withOpacity(0.1),
+                        color:
+                            (isOwner
+                                    ? const Color(0xFFFF5E7E)
+                                    : const Color(0xFF6B4EFF))
+                                .withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         role,
                         style: TextStyle(
-                          color: isOwner ? const Color(0xFFFF5E7E) : const Color(0xFF6B4EFF),
+                          color: isOwner
+                              ? const Color(0xFFFF5E7E)
+                              : const Color(0xFF6B4EFF),
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
                         ),
@@ -421,17 +504,36 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('VIETQR MỪNG CƯỚI', style: TextStyle(color: Color(0xFFFFC857), fontWeight: FontWeight.bold, fontSize: 12)),
+          const Text(
+            'VIETQR MỪNG CƯỚI',
+            style: TextStyle(
+              color: Color(0xFFFFC857),
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text(enabled ? 'Đang bật có điều kiện' : 'Chưa bật', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(
+            enabled ? 'Đang bật có điều kiện' : 'Chưa bật',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 6),
-          const Text('Chỉ hiện trên thiệp sau khi RSVP hiện tại đã hoàn tất.', style: TextStyle(color: Colors.white70)),
+          const Text(
+            'Chỉ hiện trên thiệp sau khi RSVP hiện tại đã hoàn tất.',
+            style: TextStyle(color: Colors.white70),
+          ),
           const SizedBox(height: 14),
           OutlinedButton.icon(
             onPressed: () async {
-              final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(
-                builder: (_) => VietQrConfigurationScreen(wedding: _wedding!),
-              ));
+              final changed = await Navigator.of(context).push<bool>(
+                MaterialPageRoute(
+                  builder: (_) => VietQrConfigurationScreen(wedding: _wedding!),
+                ),
+              );
               if (changed == true) _loadWorkspaceData();
             },
             icon: const Icon(Icons.qr_code_2),
@@ -461,14 +563,37 @@ class _HomeScreenState extends State<HomeScreen> {
     final archived = _wedding!['status'] == 'ARCHIVED';
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Colors.white.withOpacity(0.03), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withOpacity(0.08))),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        const Text('INVITATION COVER PHOTO', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 6),
-        Text(archived ? 'Archived: existing cover is read-only.' : 'Upload one optimized WebP cover for your guest invitation.', style: const TextStyle(color: Colors.white70)),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CoverMediaScreen(wedding: _wedding!))), icon: const Icon(Icons.image_outlined), label: const Text('Manage Cover Photo')),
-      ]),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'INVITATION COVER PHOTO',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            archived
+                ? 'Archived: existing cover is read-only.'
+                : 'Upload one optimized WebP cover for your guest invitation.',
+            style: const TextStyle(color: Colors.white70),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => CoverMediaScreen(wedding: _wedding!),
+              ),
+            ),
+            icon: const Icon(Icons.image_outlined),
+            label: const Text('Manage Cover Photo'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -478,8 +603,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final isGenerated = _wedding!['initial_plan_generated_at'] != null;
 
     final activeTasks = _tasks.where((t) => t.status != 'CANCELLED').toList();
-    final completedTasks = activeTasks.where((t) => t.status == 'COMPLETED').toList();
-    
+    final completedTasks = activeTasks
+        .where((t) => t.status == 'COMPLETED')
+        .toList();
+
     final total = activeTasks.length;
     final completed = completedTasks.length;
     final progress = total > 0 ? (completed / total * 100).round() : 0;
@@ -504,7 +631,11 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.analytics_rounded, color: Color(0xFFFF5E7E), size: 22),
+              const Icon(
+                Icons.analytics_rounded,
+                color: Color(0xFFFF5E7E),
+                size: 22,
+              ),
               const SizedBox(width: 10),
               Text(
                 'WEDDING PREPARATION PROGRESS',
@@ -531,24 +662,36 @@ class _HomeScreenState extends State<HomeScreen> {
           if (!isGenerated) ...[
             Text(
               'No Roadmap Configured',
-              style: theme.textTheme.titleMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 6),
             const Text(
               'Generate a customized preparation roadmap based on your cultural preferences to kickstart planning.',
-              style: TextStyle(color: Colors.white38, fontSize: 12, height: 1.4),
+              style: TextStyle(
+                color: Colors.white38,
+                fontSize: 12,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF6B4EFF),
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 minimumSize: const Size(double.infinity, 48),
               ),
               onPressed: () async {
                 await Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => PlanningScreen(weddingId: _wedding!['id'] as String)),
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        PlanningScreen(weddingId: _wedding!['id'] as String),
+                  ),
                 );
                 _loadWorkspaceData();
               },
@@ -557,7 +700,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Icon(Icons.auto_awesome_rounded, size: 16),
                   SizedBox(width: 8),
-                  Text('Generate Preparation Plan', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    'Generate Preparation Plan',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
             ),
@@ -566,7 +712,11 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Text(
                   '$completed of $total steps completed',
-                  style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
@@ -587,14 +737,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
-                  side: BorderSide(color: const Color(0xFF6B4EFF).withOpacity(0.4)),
+                  side: BorderSide(
+                    color: const Color(0xFF6B4EFF).withOpacity(0.4),
+                  ),
                 ),
                 minimumSize: const Size(double.infinity, 48),
                 elevation: 0,
               ),
               onPressed: () async {
                 await Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => PlanningScreen(weddingId: _wedding!['id'] as String)),
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        PlanningScreen(weddingId: _wedding!['id'] as String),
+                  ),
                 );
                 _loadWorkspaceData();
               },
@@ -603,7 +758,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Icon(Icons.checklist_rounded, size: 16),
                   SizedBox(width: 8),
-                  Text('Open Planning Checklist', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    'Open Planning Checklist',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
             ),
@@ -635,7 +793,11 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.people_alt_rounded, color: Color(0xFF00C6FF), size: 22),
+              const Icon(
+                Icons.people_alt_rounded,
+                color: Color(0xFF00C6FF),
+                size: 22,
+              ),
               const SizedBox(width: 10),
               Text(
                 'GUEST DIRECTORY',
@@ -660,14 +822,19 @@ class _HomeScreenState extends State<HomeScreen> {
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
-                side: BorderSide(color: const Color(0xFF00C6FF).withOpacity(0.4)),
+                side: BorderSide(
+                  color: const Color(0xFF00C6FF).withOpacity(0.4),
+                ),
               ),
               minimumSize: const Size(double.infinity, 48),
               elevation: 0,
             ),
             onPressed: () async {
               await Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => DirectoryScreen(weddingId: _wedding!['id'] as String)),
+                MaterialPageRoute(
+                  builder: (_) =>
+                      DirectoryScreen(weddingId: _wedding!['id'] as String),
+                ),
               );
               _loadWorkspaceData();
             },
@@ -676,7 +843,10 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Icon(Icons.folder_shared_rounded, size: 16),
                 SizedBox(width: 8),
-                Text('Open Guest Directory', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  'Open Guest Directory',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ],
             ),
           ),
@@ -685,7 +855,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildMetadataRow(String label, String value, {bool isCopyable = false, Color? color}) {
+  Widget _buildMetadataRow(
+    String label,
+    String value, {
+    bool isCopyable = false,
+    Color? color,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(

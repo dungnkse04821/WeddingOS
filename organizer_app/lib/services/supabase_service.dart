@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../foundation/constants.dart';
+import '../foundation/app_config.dart';
+import '../foundation/app_error.dart';
 import '../utils/money_text.dart';
 import '../models/task_model.dart';
 import '../models/primary_group_model.dart';
@@ -11,6 +13,7 @@ import '../models/invitation_party_model.dart';
 import '../models/invitation_model.dart';
 import '../models/guest_model.dart';
 import '../models/guest_import_model.dart';
+import 'session_recovery.dart';
 
 class SupabaseService {
   static final SupabaseService instance = SupabaseService._internal();
@@ -18,6 +21,7 @@ class SupabaseService {
 
   bool _initialized = false;
   late final SharedPreferences _prefs;
+  final SessionRecoveryController sessionRecovery = SessionRecoveryController();
 
   static const String _prefSelectedWeddingId = 'selected_wedding_id';
   static const String _prefSelectedWeddingName = 'selected_wedding_name';
@@ -30,12 +34,14 @@ class SupabaseService {
 
   bool get isAuthenticated => currentUser != null;
 
-  Future<void> initialize() async {
+  Future<void> initialize({AppConfig? config}) async {
     if (_initialized) return;
 
+    final publicConfig = config ?? Constants.publicConfig;
+
     await Supabase.initialize(
-      url: Constants.supabaseUrl,
-      anonKey: Constants.supabaseAnonKey,
+      url: publicConfig.supabaseUrl,
+      publishableKey: publicConfig.supabaseAnonKey,
       authOptions: const FlutterAuthClientOptions(
         authFlowType: AuthFlowType.pkce,
       ),
@@ -43,6 +49,23 @@ class SupabaseService {
 
     _prefs = await SharedPreferences.getInstance();
     _initialized = true;
+
+    client.auth.onAuthStateChange.listen((authState) async {
+      final session = authState.session;
+      if (session == null || authState.event == AuthChangeEvent.signedOut) {
+        await clearSelectedWedding();
+        sessionRecovery.markAuthLost();
+      } else {
+        sessionRecovery.markAuthenticated(
+          revalidate: authState.event == AuthChangeEvent.tokenRefreshed,
+        );
+      }
+    });
+    if (currentSession == null) {
+      sessionRecovery.markAuthLost();
+    } else {
+      sessionRecovery.markAuthenticated();
+    }
   }
 
   /// Performs OAuth Google Sign-In and exchanges credentials for a Supabase session.
@@ -96,6 +119,13 @@ class SupabaseService {
   Future<void> signOut() async {
     await client.auth.signOut();
     await clearSelectedWedding();
+    sessionRecovery.markAuthLost();
+  }
+
+  Future<void> handleAuthLost() async {
+    await clearSelectedWedding();
+    await client.auth.signOut(scope: SignOutScope.local);
+    sessionRecovery.markAuthLost();
   }
 
   /// M4.3 uses the approved Class-B Wedding columns. RLS restricts this to an
@@ -107,12 +137,19 @@ class SupabaseService {
     required String accountNumber,
     required String accountName,
   }) async {
-    await client.from('weddings').update({
-      'vietqr_enabled': enabled,
-      'vietqr_bank_id': bankId.trim().isEmpty ? null : bankId.trim(),
-      'vietqr_account_no': accountNumber.trim().isEmpty ? null : accountNumber.trim(),
-      'vietqr_account_name': accountName.trim().isEmpty ? null : accountName.trim(),
-    }).eq('id', weddingId);
+    await client
+        .from('weddings')
+        .update({
+          'vietqr_enabled': enabled,
+          'vietqr_bank_id': bankId.trim().isEmpty ? null : bankId.trim(),
+          'vietqr_account_no': accountNumber.trim().isEmpty
+              ? null
+              : accountNumber.trim(),
+          'vietqr_account_name': accountName.trim().isEmpty
+              ? null
+              : accountName.trim(),
+        })
+        .eq('id', weddingId);
   }
 
   /// Calls api_v1.create_wedding (TOP-WED-001) RPC with a client-generated request_id.
@@ -134,7 +171,9 @@ class SupabaseService {
         'p_exact_date': exactDate?.toIso8601String().split('T').first,
         'p_expected_year': expectedYear,
         'p_expected_month': expectedMonth,
-        'p_target_budget': targetBudget == null ? null : MoneyText.normalize(targetBudget),
+        'p_target_budget': targetBudget == null
+            ? null
+            : MoneyText.normalize(targetBudget),
       },
     );
 
@@ -170,20 +209,44 @@ class SupabaseService {
     await _prefs.remove(_prefSelectedWeddingName);
   }
 
-  /// Queries the active weddings for the current user using RLS SELECT on public.weddings
+  /// Queries accessible Wedding recovery metadata under RLS.
   Future<List<Map<String, dynamic>>> fetchMyWeddings() async {
-    try {
-      final data = await client
-          .from('weddings')
-          .select(
-            'id, name, target_budget, exact_date, expected_year, expected_month, status, initial_plan_generated_at',
-          )
-          .order('created_at', ascending: false);
-      return List<Map<String, dynamic>>.from(data);
-    } catch (e) {
-      if (kDebugMode) print('Error fetching weddings: $e');
-      return [];
+    final data = await client
+        .from('weddings')
+        .select(
+          'id, name, target_budget, exact_date, expected_year, expected_month, status, initial_plan_generated_at',
+        )
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(data);
+  }
+
+  Future<WeddingAccessResolution> revalidateSelectedWedding() {
+    return resolveSelectedWeddingAccess(
+      selectedWeddingId: getSelectedWeddingId(),
+      fetchWeddings: fetchMyWeddings,
+      clearSelection: clearSelectedWedding,
+      saveSelection: saveSelectedWedding,
+    );
+  }
+
+  Future<AppFailure> handleOperationalError(Object error) async {
+    final failure = AppErrorMapper.map(error);
+    if (failure.kind == AppErrorKind.authLost) {
+      await handleAuthLost();
+    } else if (failure.kind == AppErrorKind.accessRevoked) {
+      try {
+        final resolution = await revalidateSelectedWedding();
+        if (resolution.destination == WeddingAccessDestination.selection) {
+          sessionRecovery.requestAccessRevalidation();
+        }
+      } catch (revalidationError) {
+        if (AppErrorMapper.map(revalidationError).kind ==
+            AppErrorKind.authLost) {
+          await handleAuthLost();
+        }
+      }
     }
+    return failure;
   }
 
   /// Calls api_v1.generate_initial_plan RPC to build default cultural template tasks.
@@ -207,8 +270,7 @@ class SupabaseService {
       return (data as List)
           .map((json) => TaskModel.fromJson(json as Map<String, dynamic>))
           .toList();
-    } catch (e) {
-      if (kDebugMode) print('Error fetching tasks: $e');
+    } catch (_) {
       rethrow;
     }
   }
@@ -391,8 +453,7 @@ class SupabaseService {
             (json) => PrimaryGroupModel.fromJson(json as Map<String, dynamic>),
           )
           .toList();
-    } catch (e) {
-      if (kDebugMode) print('Error fetching groups: $e');
+    } catch (_) {
       rethrow;
     }
   }
@@ -429,8 +490,7 @@ class SupabaseService {
                 InvitationPartyModel.fromJson(json as Map<String, dynamic>),
           )
           .toList();
-    } catch (e) {
-      if (kDebugMode) print('Error fetching parties: $e');
+    } catch (_) {
       rethrow;
     }
   }
@@ -471,8 +531,7 @@ class SupabaseService {
       return (data as List)
           .map((json) => GuestModel.fromJson(json as Map<String, dynamic>))
           .toList();
-    } catch (e) {
-      if (kDebugMode) print('Error fetching guests: $e');
+    } catch (_) {
       rethrow;
     }
   }

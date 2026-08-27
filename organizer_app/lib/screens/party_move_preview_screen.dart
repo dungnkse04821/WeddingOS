@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../foundation/app_error.dart';
 import '../services/supabase_service.dart';
 
 class PartyMovePreviewScreen extends StatefulWidget {
@@ -28,20 +29,6 @@ class _PartyMovePreviewScreenState extends State<PartyMovePreviewScreen> {
   int _targetInvitedCount = 0;
   String _impactFingerprint = '';
 
-  String _safeErrorMessage(Object error, String fallback) {
-    final text = error.toString();
-    if (text.contains('42501') || text.contains('Unauthorized')) {
-      return 'Bạn không có quyền thực hiện thao tác này hoặc đám cưới không còn ở trạng thái cho phép chỉnh sửa.';
-    }
-    if (text.contains('44000') || text.contains('not found')) {
-      return 'Khách mời hoặc nhóm mời liên quan không còn tồn tại. Vui lòng tải lại danh sách mới nhất.';
-    }
-    if (text.contains('40009') || text.contains('CONFLICT')) {
-      return 'Không thể hoàn tất thao tác vì trạng thái dữ liệu hiện tại cần được rà soát lại.';
-    }
-    return fallback;
-  }
-
   @override
   void initState() {
     super.initState();
@@ -67,11 +54,11 @@ class _PartyMovePreviewScreenState extends State<PartyMovePreviewScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      final failure = await SupabaseService.instance.handleOperationalError(e);
       setState(() {
-        _errorMessage = _safeErrorMessage(
-          e,
-          'Không thể tải thông tin xem trước. Vui lòng thử lại.',
-        );
+        _errorMessage = failure.kind == AppErrorKind.generic
+            ? 'Không thể tải thông tin xem trước. Vui lòng thử lại.'
+            : failure.message;
         _isLoading = false;
       });
     }
@@ -93,15 +80,14 @@ class _PartyMovePreviewScreenState extends State<PartyMovePreviewScreen> {
         Navigator.of(context).pop(true); // Return success
       }
     } catch (e) {
-      final errStr = e.toString();
-      if (errStr.contains('STALE_IMPACT') || errStr.contains('40001')) {
+      final failure = await SupabaseService.instance.handleOperationalError(e);
+      if (failure.kind == AppErrorKind.staleImpact) {
         _showStaleImpactDialog();
       } else {
         setState(() {
-          _errorMessage = _safeErrorMessage(
-            e,
-            'Không thể lưu thay đổi nhóm mời vào lúc này. Vui lòng tải lại và thử lại.',
-          );
+          _errorMessage = failure.kind == AppErrorKind.generic
+              ? 'Không thể lưu thay đổi nhóm mời vào lúc này. Vui lòng tải lại và thử lại.'
+              : failure.message;
           _isLoading = false;
         });
       }

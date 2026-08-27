@@ -71,7 +71,9 @@ class _WeddingLifecyclePanelState extends State<WeddingLifecyclePanel> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không thể lưu trữ đám cưới. Vui lòng thử lại.')),
+          const SnackBar(
+            content: Text('Không thể lưu trữ đám cưới. Vui lòng thử lại.'),
+          ),
         );
       }
     } finally {
@@ -136,13 +138,16 @@ class _WeddingLifecyclePanelState extends State<WeddingLifecyclePanel> {
     }
     setState(() {
       _busy = false;
-      _retryRequired = result == WeddingDeleteResult.retryRequired ||
+      _retryRequired =
+          result == WeddingDeleteResult.retryRequired ||
           result == WeddingDeleteResult.failed;
     });
+    if (result == WeddingDeleteResult.authLost) return;
     final message = result == WeddingDeleteResult.unauthorized
-        ? 'Bạn không có quyền thực hiện thao tác này.'
+        ? 'Bạn không còn quyền truy cập đám cưới này.'
         : 'Quá trình xóa chưa hoàn tất. Bạn có thể thử lại.';
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -168,7 +173,10 @@ class _WeddingLifecyclePanelState extends State<WeddingLifecyclePanel> {
             const Text(
               'ARCHIVED · CHỈ ĐỌC',
               key: Key('archived-badge'),
-              style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.amber,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -188,7 +196,9 @@ class _WeddingLifecyclePanelState extends State<WeddingLifecyclePanel> {
             OutlinedButton.icon(
               key: const Key('delete-action'),
               onPressed: _busy ? null : _openDeleteConfirmation,
-              style: OutlinedButton.styleFrom(foregroundColor: Colors.redAccent),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.redAccent,
+              ),
               icon: const Icon(Icons.delete_forever_outlined),
               label: const Text('Xóa đám cưới vĩnh viễn'),
             ),
@@ -214,7 +224,11 @@ class _WeddingLifecyclePanelState extends State<WeddingLifecyclePanel> {
             if (_busy)
               const CircularProgressIndicator()
             else
-              const Icon(Icons.hourglass_top_rounded, size: 56, color: Colors.amber),
+              const Icon(
+                Icons.hourglass_top_rounded,
+                size: 56,
+                color: Colors.amber,
+              ),
             const SizedBox(height: 18),
             const Text(
               'Đang xóa đám cưới…',

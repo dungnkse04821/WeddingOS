@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../foundation/app_error.dart';
 import '../models/guest_model.dart';
 import '../models/primary_group_model.dart';
 import '../models/invitation_party_model.dart';
@@ -51,20 +52,6 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
   String? _resolvedGroupId;
   String? _resolvedPartyId;
 
-  String _safeErrorMessage(Object error, String fallback) {
-    final text = error.toString();
-    if (text.contains('42501') || text.contains('Unauthorized')) {
-      return 'Bạn không có quyền thực hiện thao tác này hoặc đám cưới không còn ở trạng thái cho phép chỉnh sửa.';
-    }
-    if (text.contains('44000') || text.contains('not found')) {
-      return 'Một trong hai khách mời không còn tồn tại. Vui lòng tải lại danh sách mới nhất.';
-    }
-    if (text.contains('40009') || text.contains('CONFLICT')) {
-      return 'Không thể xác nhận lại thao tác gộp này một cách an toàn. Vui lòng tải lại dữ liệu và tạo xem trước mới.';
-    }
-    return fallback;
-  }
-
   @override
   void initState() {
     super.initState();
@@ -105,11 +92,11 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
         _resolvedPartyId = _survivor!.invitationPartyId;
       });
     } catch (e) {
+      final failure = await SupabaseService.instance.handleOperationalError(e);
       setState(() {
-        _errorMessage = _safeErrorMessage(
-          e,
-          'Không thể tải xem trước gộp khách. Vui lòng thử lại.',
-        );
+        _errorMessage = failure.kind == AppErrorKind.generic
+            ? 'Không thể tải xem trước gộp khách. Vui lòng thử lại.'
+            : failure.message;
         _isLoadingPreview = false;
       });
     }
@@ -138,15 +125,14 @@ class _GuestMergeScreenState extends State<GuestMergeScreen> {
         Navigator.of(context).pop(true); // Return success
       }
     } catch (e) {
-      final errStr = e.toString();
-      if (errStr.contains('STALE_IMPACT') || errStr.contains('40001')) {
+      final failure = await SupabaseService.instance.handleOperationalError(e);
+      if (failure.kind == AppErrorKind.staleImpact) {
         _showStaleImpactDialog();
       } else {
         setState(() {
-          _errorMessage = _safeErrorMessage(
-            e,
-            'Không thể gộp khách vào lúc này. Vui lòng tải lại và thử lại.',
-          );
+          _errorMessage = failure.kind == AppErrorKind.generic
+              ? 'Không thể gộp khách vào lúc này. Vui lòng tải lại và thử lại.'
+              : failure.message;
           _isCommitting = false;
         });
       }

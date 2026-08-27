@@ -8,6 +8,7 @@ Status:
 - M8.1C Map Validation + Function Hygiene: **COMPLETE**
 - M8.1: **COMPLETE**
 - M8.2A Edge Resource Bounds & Failure Envelopes: **COMPLETE**
+- M8.2B Flutter Auth/Session Reliability: **COMPLETE**
 
 Date: 2026-08-26
 
@@ -467,6 +468,94 @@ narrowed explicitly, and the disposable provider harness now removes RSVP event
 responses before fixture teardown. No production database or Guest Web change
 was required.
 
-M8 remains IN PROGRESS. AUTH_LOST/build-time Flutter configuration, Guest Web
-CSP, CI/staging, NFR benchmarks, full security-matrix evidence, broad
-observability, and unrelated rate-limit policy remain outside this slice.
+At M8.2A closure, AUTH_LOST/build-time Flutter configuration, Guest Web CSP,
+CI/staging, NFR benchmarks, full security-matrix evidence, broad observability,
+and unrelated rate-limit policy remained outside that slice.
+
+## M8.2B Flutter Auth/Session Reliability
+
+This slice closes `M8-P1-003` and the client-source portion of `M8-P2-008`.
+It changes no database, RLS, Edge, Storage, Guest Web, or Wedding lifecycle
+contract.
+
+### AUTH_LOST and Wedding Access Recovery
+
+The existing `SupabaseService` now owns one small
+`SessionRecoveryController`. It observes Supabase auth-state changes and gives
+the root navigator a single authenticated/auth-lost transition path. A missing,
+signed-out, expired, refresh-failed, revoked, or backend-rejected organizer
+session clears auth-dependent selected-Wedding state and returns the app to the
+login surface without exposing provider details. Wedding-delete HTTP 401 uses
+the same path; HTTP 403 remains an authorization result rather than an account
+logout.
+
+Selected Wedding access is revalidated using only selector/recovery metadata on
+startup, token refresh, app resume, Wedding switch, and authoritative access
+failure. A revoked membership or physically absent Wedding clears the stale
+selection and returns to the selector/no-Wedding flow; another accessible
+Wedding remains available there. This does not log out a still-valid account.
+
+ARCHIVED Weddings remain selectable and readable. A DELETING Wedding remains
+available only when RLS returns it to the active OWNER; the home load reads the
+Wedding plus that actor's own membership and does not fetch tasks or the normal
+business graph before rendering the recovery-only panel. A collaborator cannot
+recover a DELETING Wedding because the metadata query returns no accessible row.
+
+### Safe Errors and Draft Preservation
+
+`AppErrorMapper` provides the bounded categories needed by current UX:
+`AUTH_LOST`, access revoked, validation/conflict, `STALE_STATE`,
+`STALE_IMPACT`, retry required, and generic failure. It inspects technical
+details only for classification and never displays SQLSTATE, RPC/table names,
+PostgREST payloads, provider URLs, Storage paths, or stack text. Existing stale
+and delete-retry semantics remain distinct. Organizer screens that previously
+interpolated exceptions now use this mapping.
+
+The create-Wedding form keeps its non-sensitive name, budget text, cultural
+context, and date choices in a process-memory-only draft. This allows a user to
+reopen the form after login without writing the draft to device storage. The
+draft is cleared after success. Passwords, JWTs, invitation tokens, credentials,
+payment secrets, and the typed permanent-delete confirmation are not part of
+the draft model; the existing delete confirmation remains dialog-local and is
+discarded when closed.
+
+### Public Build Configuration
+
+Flutter now reads `SUPABASE_URL` and `SUPABASE_ANON_KEY` exclusively through
+`--dart-define`; the checked-in local URL and JWT-shaped anonymous key were
+removed. Startup requires an HTTP(S) URL and plausible publishable/anonymous
+client key, rejects a JWT whose role is `service_role`, and shows a bounded
+deployment-configuration screen without echoing key material. There is no
+Flutter service-role configuration path.
+
+`organizer_app/README.md` documents local Android-emulator and desktop/web
+defines. Google Sign-In remains dependent on platform OAuth client metadata,
+redirect allowlists, signing fingerprints, and matching Supabase provider
+configuration. No production Google identifier was invented or hard-coded;
+M8 staging/release work must supply and verify those deployment values.
+
+### Verification Evidence
+
+- full Flutter suite: 11 test files / 54 tests / 0 failures;
+- focused coverage proves config validation and service-role rejection,
+  AUTH_LOST state transitions, token-refresh revalidation, wedding-delete 401,
+  stale/revoked/deleted selection recovery, another/no-Wedding destinations,
+  ARCHIVED and OWNER DELETING compatibility, in-memory draft behavior, and raw
+  technical-error redaction;
+- `flutter analyze`: 0 errors / 0 warnings / 212 info diagnostics (existing
+  style/deprecation debt remains outside this slice);
+- DB smoke: 15 pgTAP files / 529 assertions / 0 failures;
+- wedding-delete Edge auth/contract smoke: 1 file / 12 tests / 0 failures;
+- source audit: no organizer token logging, no service-role client setting, no
+  hard-coded Supabase key, no persisted delete confirmation, and no backend
+  surface change.
+
+Verification fixes were limited to client implementation mechanics: imports for
+the shared session error path were added to Finance forms, SQLSTATE `42501` was
+classified as an access signal and then metadata-revalidated before selection
+is cleared, and token refresh was made to notify even when authentication state
+remains valid. No backend simplification or lifecycle redesign was required.
+
+M8 remains IN PROGRESS. Guest Web CSP, CI/staging (including real Google OAuth
+deployment values), NFR benchmarks, full security-matrix evidence, broad
+observability, and unrelated P2/P3 findings remain outside this slice.

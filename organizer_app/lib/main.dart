@@ -1,16 +1,39 @@
 import 'package:flutter/material.dart';
+
+import 'foundation/app_config.dart';
 import 'screens/auth_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/wedding_selection_screen.dart';
+import 'services/session_recovery.dart';
 import 'services/supabase_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize local Supabase connection
-  await SupabaseService.instance.initialize();
+  try {
+    await SupabaseService.instance.initialize();
+    runApp(const MyApp());
+  } on AppConfigException catch (error) {
+    runApp(ConfigurationErrorApp(message: error.message));
+  }
+}
 
-  runApp(const MyApp());
+class ConfigurationErrorApp extends StatelessWidget {
+  const ConfigurationErrorApp({super.key, required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    debugShowCheckedModeBanner: false,
+    home: Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(message, textAlign: TextAlign.center),
+        ),
+      ),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -32,9 +55,21 @@ class MyApp extends StatelessWidget {
           onSurface: Colors.white,
         ),
         textTheme: const TextTheme(
-          headlineLarge: TextStyle(fontFamily: 'Outfit', fontSize: 32, fontWeight: FontWeight.bold),
-          titleLarge: TextStyle(fontFamily: 'Outfit', fontSize: 22, fontWeight: FontWeight.bold),
-          titleMedium: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold),
+          headlineLarge: TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 32,
+            fontWeight: FontWeight.bold,
+          ),
+          titleLarge: TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+          ),
+          titleMedium: TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
           bodyLarge: TextStyle(fontFamily: 'Inter', fontSize: 15),
           bodyMedium: TextStyle(fontFamily: 'Inter', fontSize: 13),
         ),
@@ -50,21 +85,80 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class RootNavigator extends StatelessWidget {
+class RootNavigator extends StatefulWidget {
   const RootNavigator({super.key});
+
+  @override
+  State<RootNavigator> createState() => _RootNavigatorState();
+}
+
+class _RootNavigatorState extends State<RootNavigator>
+    with WidgetsBindingObserver {
+  late Future<WeddingAccessResolution> _access;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    SupabaseService.instance.sessionRecovery.addListener(_sessionChanged);
+    _access = _resolveAccess();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    SupabaseService.instance.sessionRecovery.removeListener(_sessionChanged);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      setState(() => _access = _resolveAccess());
+    }
+  }
+
+  void _sessionChanged() {
+    if (!mounted) return;
+    setState(() => _access = _resolveAccess());
+  }
+
+  Future<WeddingAccessResolution> _resolveAccess() async {
+    final supabase = SupabaseService.instance;
+    if (supabase.sessionRecovery.status != AppSessionStatus.authenticated) {
+      return const WeddingAccessResolution(WeddingAccessDestination.selection);
+    }
+    try {
+      return await supabase.revalidateSelectedWedding();
+    } catch (error) {
+      await supabase.handleOperationalError(error);
+      return const WeddingAccessResolution(WeddingAccessDestination.selection);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final supabase = SupabaseService.instance;
 
-    if (!supabase.isAuthenticated) {
+    if (supabase.sessionRecovery.status != AppSessionStatus.authenticated) {
       return const AuthScreen();
     }
 
-    if (supabase.getSelectedWeddingId() == null) {
-      return const WeddingSelectionScreen();
-    }
-
-    return const HomeScreen();
+    return FutureBuilder<WeddingAccessResolution>(
+      future: _access,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (supabase.sessionRecovery.status != AppSessionStatus.authenticated) {
+          return const AuthScreen();
+        }
+        return snapshot.data?.destination == WeddingAccessDestination.home
+            ? const HomeScreen()
+            : const WeddingSelectionScreen();
+      },
+    );
   }
 }

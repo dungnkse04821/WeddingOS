@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+
+import '../foundation/app_error.dart';
+import '../services/create_wedding_draft.dart';
 import '../services/supabase_service.dart';
 import '../utils/money_text.dart';
 import 'home_screen.dart';
@@ -35,8 +38,10 @@ class _WeddingSelectionScreenState extends State<WeddingSelectionScreen> {
         _loading = false;
       });
     } catch (e) {
+      final failure = await SupabaseService.instance.handleOperationalError(e);
+      if (!mounted || failure.kind == AppErrorKind.authLost) return;
       setState(() {
-        _errorMessage = 'Failed to load weddings: $e';
+        _errorMessage = failure.message;
         _loading = false;
       });
     }
@@ -45,9 +50,9 @@ class _WeddingSelectionScreenState extends State<WeddingSelectionScreen> {
   void _selectWedding(String id, String name) async {
     await SupabaseService.instance.saveSelectedWedding(id, name);
     if (mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
     }
   }
 
@@ -118,7 +123,9 @@ class _WeddingSelectionScreenState extends State<WeddingSelectionScreen> {
                 children: [
                   Text(
                     'Welcome back,',
-                    style: theme.textTheme.bodyLarge?.copyWith(color: Colors.white60),
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: Colors.white60,
+                    ),
                   ),
                   Text(
                     SupabaseService.instance.currentUser?.email ?? 'Organizer',
@@ -160,16 +167,16 @@ class _WeddingSelectionScreenState extends State<WeddingSelectionScreen> {
                             ),
                           )
                         : _errorMessage != null
-                            ? Center(
-                                child: Text(
-                                  _errorMessage!,
-                                  style: const TextStyle(color: Colors.redAccent),
-                                  textAlign: TextAlign.center,
-                                ),
-                              )
-                            : _weddings.isEmpty
-                                ? _buildEmptyState()
-                                : _buildWeddingList(),
+                        ? Center(
+                            child: Text(
+                              _errorMessage!,
+                              style: const TextStyle(color: Colors.redAccent),
+                              textAlign: TextAlign.center,
+                            ),
+                          )
+                        : _weddings.isEmpty
+                        ? _buildEmptyState()
+                        : _buildWeddingList(),
                   ),
                 ],
               ),
@@ -217,7 +224,10 @@ class _WeddingSelectionScreenState extends State<WeddingSelectionScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF6B4EFF),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -240,10 +250,10 @@ class _WeddingSelectionScreenState extends State<WeddingSelectionScreen> {
         final id = w['id'] as String;
         final name = w['name'] as String;
         final status = w['status'] as String? ?? 'ACTIVE';
-        final targetBudget = w['target_budget'] != null 
+        final targetBudget = w['target_budget'] != null
             ? '${w['target_budget']} VND'
             : 'Not set';
-        
+
         String dateStr = '';
         if (w['exact_date'] != null) {
           dateStr = w['exact_date'] as String;
@@ -258,7 +268,10 @@ class _WeddingSelectionScreenState extends State<WeddingSelectionScreen> {
             border: Border.all(color: Colors.white.withOpacity(0.08)),
           ),
           child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 12,
+            ),
             title: Text(
               name,
               style: const TextStyle(
@@ -275,22 +288,49 @@ class _WeddingSelectionScreenState extends State<WeddingSelectionScreen> {
                 children: [
                   if (status != 'ACTIVE')
                     Text(
-                      status == 'ARCHIVED' ? 'ARCHIVED · READ ONLY' : 'DELETING · RECOVERY REQUIRED',
+                      status == 'ARCHIVED'
+                          ? 'ARCHIVED · READ ONLY'
+                          : 'DELETING · RECOVERY REQUIRED',
                       style: TextStyle(
-                        color: status == 'ARCHIVED' ? Colors.amber : Colors.redAccent,
+                        color: status == 'ARCHIVED'
+                            ? Colors.amber
+                            : Colors.redAccent,
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   Row(
                     children: [
-                      Icon(Icons.calendar_today_rounded, size: 14, color: Colors.white.withOpacity(0.5)),
+                      Icon(
+                        Icons.calendar_today_rounded,
+                        size: 14,
+                        color: Colors.white.withOpacity(0.5),
+                      ),
                       const SizedBox(width: 6),
-                      Text(dateStr, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13)),
+                      Text(
+                        dateStr,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.6),
+                          fontSize: 13,
+                        ),
+                      ),
                       const SizedBox(width: 16),
-                      Icon(Icons.monetization_on_outlined, size: 14, color: Colors.white.withOpacity(0.5)),
+                      Icon(
+                        Icons.monetization_on_outlined,
+                        size: 14,
+                        color: Colors.white.withOpacity(0.5),
+                      ),
                       const SizedBox(width: 6),
-                      Expanded(child: Text(targetBudget, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13))),
+                      Expanded(
+                        child: Text(
+                          targetBudget,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.6),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -313,7 +353,8 @@ class CreateWeddingBottomSheet extends StatefulWidget {
   const CreateWeddingBottomSheet({super.key});
 
   @override
-  State<CreateWeddingBottomSheet> createState() => _CreateWeddingBottomSheetState();
+  State<CreateWeddingBottomSheet> createState() =>
+      _CreateWeddingBottomSheetState();
 }
 
 class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
@@ -330,7 +371,7 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
 
   bool _submitting = false;
   String? _error;
-  
+
   // Local unique request_id generated for the form session
   late final String _requestId;
 
@@ -338,8 +379,28 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
   void initState() {
     super.initState();
     _requestId = const Uuid().v4();
-    _selectedExpectedYear = DateTime.now().year;
-    _selectedExpectedMonth = DateTime.now().month;
+    final draft = CreateWeddingDraftStore.instance.draft;
+    _nameController.text = draft?.name ?? '';
+    _budgetController.text = draft?.targetBudget ?? '';
+    _culturalContext = draft?.culturalContext ?? 'TUY_CHON';
+    _useExactDate = draft?.useExactDate ?? true;
+    _selectedExactDate = draft?.exactDate;
+    _selectedExpectedYear = draft?.expectedYear ?? DateTime.now().year;
+    _selectedExpectedMonth = draft?.expectedMonth ?? DateTime.now().month;
+  }
+
+  void _saveDraft() {
+    CreateWeddingDraftStore.instance.save(
+      CreateWeddingDraft(
+        name: _nameController.text,
+        targetBudget: _budgetController.text,
+        culturalContext: _culturalContext,
+        useExactDate: _useExactDate,
+        exactDate: _selectedExactDate,
+        expectedYear: _selectedExpectedYear,
+        expectedMonth: _selectedExpectedMonth,
+      ),
+    );
   }
 
   Future<void> _selectExactDate() async {
@@ -367,6 +428,7 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
       setState(() {
         _selectedExactDate = picked;
       });
+      _saveDraft();
     }
   }
 
@@ -397,6 +459,7 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
         expectedMonth: _useExactDate ? null : _selectedExpectedMonth,
         targetBudget: targetBudget,
       );
+      CreateWeddingDraftStore.instance.clear();
 
       if (mounted) {
         Navigator.of(context).pop(true);
@@ -406,8 +469,11 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
         );
       }
     } catch (e) {
+      _saveDraft();
+      final failure = await SupabaseService.instance.handleOperationalError(e);
+      if (!mounted || failure.kind == AppErrorKind.authLost) return;
       setState(() {
-        _error = e.toString().replaceFirst('Exception: ', '').replaceFirst('PostgrestException: ', '');
+        _error = failure.message;
         _submitting = false;
       });
     }
@@ -469,7 +535,9 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
                   decoration: BoxDecoration(
                     color: Colors.redAccent.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.redAccent.withOpacity(0.25)),
+                    border: Border.all(
+                      color: Colors.redAccent.withOpacity(0.25),
+                    ),
                   ),
                   child: Text(
                     _error!,
@@ -483,6 +551,7 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
               // Name Input
               TextFormField(
                 controller: _nameController,
+                onChanged: (_) => _saveDraft(),
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   labelText: 'Wedding Name (e.g. Anh & Chi)',
@@ -491,7 +560,9 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
                   fillColor: Colors.white.withOpacity(0.02),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
+                    borderSide: BorderSide(
+                      color: Colors.white.withOpacity(0.08),
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -510,6 +581,7 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
               // Target Budget
               TextFormField(
                 controller: _budgetController,
+                onChanged: (_) => _saveDraft(),
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   labelText: 'Target Budget (VND)',
@@ -518,7 +590,9 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
                   fillColor: Colors.white.withOpacity(0.02),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
+                    borderSide: BorderSide(
+                      color: Colors.white.withOpacity(0.08),
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -542,7 +616,9 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
                   fillColor: Colors.white.withOpacity(0.02),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
+                    borderSide: BorderSide(
+                      color: Colors.white.withOpacity(0.08),
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -550,15 +626,25 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
                   ),
                 ),
                 items: const [
-                  DropdownMenuItem(value: 'TUY_CHON', child: Text('Tùy Chọn / Khác')),
-                  DropdownMenuItem(value: 'VIETNAMESE', child: Text('Truyền thống Việt Nam')),
-                  DropdownMenuItem(value: 'WESTERN', child: Text('Hiện đại phương Tây')),
+                  DropdownMenuItem(
+                    value: 'TUY_CHON',
+                    child: Text('Tùy Chọn / Khác'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'VIETNAMESE',
+                    child: Text('Truyền thống Việt Nam'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'WESTERN',
+                    child: Text('Hiện đại phương Tây'),
+                  ),
                 ],
                 onChanged: (val) {
                   if (val != null) {
                     setState(() {
                       _culturalContext = val;
                     });
+                    _saveDraft();
                   }
                 },
               ),
@@ -567,7 +653,10 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
               // Date Precision Selector Toggle
               Row(
                 children: [
-                  const Text('Date Precision:', style: TextStyle(color: Colors.white70)),
+                  const Text(
+                    'Date Precision:',
+                    style: TextStyle(color: Colors.white70),
+                  ),
                   const Spacer(),
                   ChoiceChip(
                     label: const Text('Exact Date'),
@@ -579,6 +668,7 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
                       setState(() {
                         _useExactDate = true;
                       });
+                      _saveDraft();
                     },
                   ),
                   const SizedBox(width: 8),
@@ -592,6 +682,7 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
                       setState(() {
                         _useExactDate = false;
                       });
+                      _saveDraft();
                     },
                   ),
                 ],
@@ -602,14 +693,24 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
               if (_useExactDate) ...[
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Selected Date', style: TextStyle(color: Colors.white60, fontSize: 13)),
+                  title: const Text(
+                    'Selected Date',
+                    style: TextStyle(color: Colors.white60, fontSize: 13),
+                  ),
                   subtitle: Text(
                     _selectedExactDate != null
                         ? '${_selectedExactDate!.day}/${_selectedExactDate!.month}/${_selectedExactDate!.year}'
                         : 'Select Date...',
-                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  trailing: const Icon(Icons.calendar_month, color: Color(0xFFFF5E7E)),
+                  trailing: const Icon(
+                    Icons.calendar_month,
+                    color: Color(0xFFFF5E7E),
+                  ),
                   onTap: _selectExactDate,
                 ),
               ] else ...[
@@ -627,12 +728,18 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
                           fillColor: Colors.white.withOpacity(0.02),
                         ),
                         items: List.generate(12, (index) => index + 1)
-                            .map((m) => DropdownMenuItem(value: m, child: Text('Month $m')))
+                            .map(
+                              (m) => DropdownMenuItem(
+                                value: m,
+                                child: Text('Month $m'),
+                              ),
+                            )
                             .toList(),
                         onChanged: (val) {
                           setState(() {
                             _selectedExpectedMonth = val;
                           });
+                          _saveDraft();
                         },
                       ),
                     ),
@@ -648,13 +755,23 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
                           filled: true,
                           fillColor: Colors.white.withOpacity(0.02),
                         ),
-                        items: List.generate(10, (index) => DateTime.now().year + index)
-                            .map((y) => DropdownMenuItem(value: y, child: Text('$y')))
-                            .toList(),
+                        items:
+                            List.generate(
+                                  10,
+                                  (index) => DateTime.now().year + index,
+                                )
+                                .map(
+                                  (y) => DropdownMenuItem(
+                                    value: y,
+                                    child: Text('$y'),
+                                  ),
+                                )
+                                .toList(),
                         onChanged: (val) {
                           setState(() {
                             _selectedExpectedYear = val;
                           });
+                          _saveDraft();
                         },
                       ),
                     ),
@@ -685,7 +802,10 @@ class _CreateWeddingBottomSheetState extends State<CreateWeddingBottomSheet> {
                       )
                     : const Text(
                         'Initialize Plan Workspace',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
               ),
               const SizedBox(height: 32),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+
 import '../services/finance_service.dart';
+import '../services/supabase_service.dart';
 import '../utils/money_text.dart';
 
 class PaymentRefundCreateEditScreen extends StatefulWidget {
@@ -14,10 +16,12 @@ class PaymentRefundCreateEditScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<PaymentRefundCreateEditScreen> createState() => _PaymentRefundCreateEditScreenState();
+  State<PaymentRefundCreateEditScreen> createState() =>
+      _PaymentRefundCreateEditScreenState();
 }
 
-class _PaymentRefundCreateEditScreenState extends State<PaymentRefundCreateEditScreen> {
+class _PaymentRefundCreateEditScreenState
+    extends State<PaymentRefundCreateEditScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _amountCtrl;
   late TextEditingController _nameCtrl; // Payer / Receiver
@@ -69,7 +73,11 @@ class _PaymentRefundCreateEditScreenState extends State<PaymentRefundCreateEditS
       }
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      final failure = await SupabaseService.instance.handleOperationalError(e);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(failure.message)));
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -78,7 +86,9 @@ class _PaymentRefundCreateEditScreenState extends State<PaymentRefundCreateEditS
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.isRefund ? "Thêm Hoàn tiền" : "Thêm Thanh toán")),
+      appBar: AppBar(
+        title: Text(widget.isRefund ? "Thêm Hoàn tiền" : "Thêm Thanh toán"),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Form(
@@ -89,16 +99,24 @@ class _PaymentRefundCreateEditScreenState extends State<PaymentRefundCreateEditS
                   TextFormField(
                     controller: _amountCtrl,
                     decoration: const InputDecoration(labelText: "Số tiền"),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     validator: MoneyText.validate,
                   ),
                   TextFormField(
                     controller: _nameCtrl,
-                    decoration: InputDecoration(labelText: widget.isRefund ? "Người nhận" : "Người thanh toán"),
+                    decoration: InputDecoration(
+                      labelText: widget.isRefund
+                          ? "Người nhận"
+                          : "Người thanh toán",
+                    ),
                     validator: (v) => v!.isEmpty ? "Bắt buộc nhập" : null,
                   ),
                   ListTile(
-                    title: Text(widget.isRefund ? "Ngày hoàn" : "Ngày thanh toán"),
+                    title: Text(
+                      widget.isRefund ? "Ngày hoàn" : "Ngày thanh toán",
+                    ),
                     subtitle: Text(_date.toIso8601String().split('T').first),
                     trailing: const Icon(Icons.calendar_today),
                     onTap: () async {
@@ -119,10 +137,7 @@ class _PaymentRefundCreateEditScreenState extends State<PaymentRefundCreateEditS
                     maxLines: 3,
                   ),
                   const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: _submit,
-                    child: const Text("Lưu"),
-                  ),
+                  ElevatedButton(onPressed: _submit, child: const Text("Lưu")),
                 ],
               ),
             ),

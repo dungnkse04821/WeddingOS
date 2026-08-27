@@ -1,19 +1,27 @@
 import 'package:flutter/material.dart';
+
 import '../models/installment_model.dart';
 import '../services/finance_service.dart';
+import '../services/supabase_service.dart';
 import '../utils/money_text.dart';
 
 class InstallmentCreateEditScreen extends StatefulWidget {
   final String budgetItemId;
   final InstallmentModel? item;
 
-  const InstallmentCreateEditScreen({Key? key, required this.budgetItemId, this.item}) : super(key: key);
+  const InstallmentCreateEditScreen({
+    Key? key,
+    required this.budgetItemId,
+    this.item,
+  }) : super(key: key);
 
   @override
-  State<InstallmentCreateEditScreen> createState() => _InstallmentCreateEditScreenState();
+  State<InstallmentCreateEditScreen> createState() =>
+      _InstallmentCreateEditScreenState();
 }
 
-class _InstallmentCreateEditScreenState extends State<InstallmentCreateEditScreen> {
+class _InstallmentCreateEditScreenState
+    extends State<InstallmentCreateEditScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _amountCtrl;
   DateTime _dueDate = DateTime.now();
@@ -50,11 +58,12 @@ class _InstallmentCreateEditScreenState extends State<InstallmentCreateEditScree
         if (mounted) Navigator.pop(context);
       } else {
         // Edit logic -> FIN-007 Preview
-        final preview = await FinanceService.instance.previewInstallmentCompound(
-          widget.item!.id,
-          _amountCtrl.text,
-          _dueDate.toIso8601String().split('T').first,
-        );
+        final preview = await FinanceService.instance
+            .previewInstallmentCompound(
+              widget.item!.id,
+              _amountCtrl.text,
+              _dueDate.toIso8601String().split('T').first,
+            );
         setState(() {
           _preview = preview;
           _amountToCommit = _amountCtrl.text;
@@ -63,7 +72,11 @@ class _InstallmentCreateEditScreenState extends State<InstallmentCreateEditScree
         return; // Don't pop yet
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      final failure = await SupabaseService.instance.handleOperationalError(e);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(failure.message)));
+      }
     } finally {
       if (mounted && widget.item == null) setState(() => _loading = false);
     }
@@ -82,7 +95,11 @@ class _InstallmentCreateEditScreenState extends State<InstallmentCreateEditScree
       );
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      final failure = await SupabaseService.instance.handleOperationalError(e);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(failure.message)));
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -99,7 +116,10 @@ class _InstallmentCreateEditScreenState extends State<InstallmentCreateEditScree
             : ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  const Text("Sự thay đổi này ảnh hưởng đến các khoản thanh toán hiện tại.", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    "Sự thay đổi này ảnh hưởng đến các khoản thanh toán hiện tại.",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 16),
                   if (warnings.isNotEmpty)
                     Container(
@@ -107,7 +127,16 @@ class _InstallmentCreateEditScreenState extends State<InstallmentCreateEditScree
                       padding: const EdgeInsets.all(8),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: warnings.map((w) => Text("⚠️ ${w['code']}: ${w['details']}", style: const TextStyle(color: Colors.deepOrange))).toList(),
+                        children: warnings
+                            .map(
+                              (w) => Text(
+                                "⚠️ ${w['code']}: ${w['details']}",
+                                style: const TextStyle(
+                                  color: Colors.deepOrange,
+                                ),
+                              ),
+                            )
+                            .toList(),
                       ),
                     ),
                   const SizedBox(height: 16),
@@ -118,14 +147,16 @@ class _InstallmentCreateEditScreenState extends State<InstallmentCreateEditScree
                   TextButton(
                     onPressed: () => setState(() => _preview = null),
                     child: const Text("Huỷ"),
-                  )
+                  ),
                 ],
               ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.item == null ? "Thêm đợt chi" : "Sửa đợt chi")),
+      appBar: AppBar(
+        title: Text(widget.item == null ? "Thêm đợt chi" : "Sửa đợt chi"),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Form(
@@ -136,7 +167,9 @@ class _InstallmentCreateEditScreenState extends State<InstallmentCreateEditScree
                   TextFormField(
                     controller: _amountCtrl,
                     decoration: const InputDecoration(labelText: "Số tiền"),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     validator: MoneyText.validate,
                   ),
                   ListTile(
@@ -156,10 +189,7 @@ class _InstallmentCreateEditScreenState extends State<InstallmentCreateEditScree
                     },
                   ),
                   const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: _submit,
-                    child: const Text("Lưu"),
-                  ),
+                  ElevatedButton(onPressed: _submit, child: const Text("Lưu")),
                 ],
               ),
             ),

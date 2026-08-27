@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/finance_summary_model.dart';
 import '../services/finance_service.dart';
 import '../services/supabase_service.dart';
@@ -23,8 +24,10 @@ class _FinanceOverviewScreenState extends State<FinanceOverviewScreen> {
   String? _error;
   FinanceSummaryModel? _summary;
 
-  FinanceService get _financeService => widget.financeService ?? FinanceService.instance;
-  SupabaseService get _supabaseService => widget.supabaseService ?? SupabaseService.instance;
+  FinanceService get _financeService =>
+      widget.financeService ?? FinanceService.instance;
+  SupabaseService get _supabaseService =>
+      widget.supabaseService ?? SupabaseService.instance;
 
   @override
   void initState() {
@@ -45,8 +48,9 @@ class _FinanceOverviewScreenState extends State<FinanceOverviewScreen> {
         _summary = summary;
       });
     } catch (e) {
+      final failure = await SupabaseService.instance.handleOperationalError(e);
       setState(() {
-        _error = e.toString();
+        _error = failure.message;
       });
     } finally {
       setState(() {
@@ -61,19 +65,16 @@ class _FinanceOverviewScreenState extends State<FinanceOverviewScreen> {
       appBar: AppBar(
         title: const Text("Tổng quan Tài chính"),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadSummary,
-          )
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadSummary),
         ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(child: Text("Error: $_error"))
-              : _summary == null
-                  ? const Center(child: Text("Không có dữ liệu tài chính."))
-                  : _buildSummaryView(),
+          ? Center(child: Text("Error: $_error"))
+          : _summary == null
+          ? const Center(child: Text("Không có dữ liệu tài chính."))
+          : _buildSummaryView(),
     );
   }
 
@@ -87,7 +88,11 @@ class _FinanceOverviewScreenState extends State<FinanceOverviewScreen> {
           _buildCard("Dự kiến tổng", s.totalProjected, Colors.blue),
           _buildCard("Đã xác nhận", s.totalConfirmed, Colors.blueAccent),
           _buildCard("Đã thanh toán (net)", s.netPaid, Colors.green),
-          _buildCard("Còn nợ", s.outstanding == null ? "Không xác định" : s.outstanding!, s.outstanding == null ? Colors.grey : Colors.orange),
+          _buildCard(
+            "Còn nợ",
+            s.outstanding == null ? "Không xác định" : s.outstanding!,
+            s.outstanding == null ? Colors.grey : Colors.orange,
+          ),
           _buildCard("Trả dư", s.overpaid, Colors.red),
           _buildCard("Sắp tới (7 ngày)", s.upcoming7d, Colors.amber),
           _buildCard("Sắp tới (30 ngày)", s.upcoming30d, Colors.amber.shade700),
@@ -96,7 +101,9 @@ class _FinanceOverviewScreenState extends State<FinanceOverviewScreen> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const BudgetItemListScreen()),
+                MaterialPageRoute(
+                  builder: (context) => const BudgetItemListScreen(),
+                ),
               ).then((_) => _loadSummary());
             },
             child: const Text("Quản lý Hạng mục"),
@@ -114,7 +121,11 @@ class _FinanceOverviewScreenState extends State<FinanceOverviewScreen> {
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
         trailing: Text(
           value,
-          style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: color,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );

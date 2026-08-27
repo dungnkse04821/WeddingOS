@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../foundation/app_error.dart';
 import '../services/supabase_service.dart';
 import 'wedding_selection_screen.dart';
 
@@ -29,9 +31,9 @@ class _AuthScreenState extends State<AuthScreen> {
           MaterialPageRoute(builder: (_) => const WeddingSelectionScreen()),
         );
       }
-    } catch (e) {
+    } catch (_) {
       setState(() {
-        _errorMessage = e.toString();
+        _errorMessage = 'Không thể đăng nhập. Vui lòng thử lại.';
         _loading = false;
       });
     }
@@ -60,9 +62,9 @@ class _AuthScreenState extends State<AuthScreen> {
           MaterialPageRoute(builder: (_) => const WeddingSelectionScreen()),
         );
       }
-    } catch (e) {
+    } catch (_) {
       setState(() {
-        _errorMessage = e.toString().replaceFirst('Exception: ', '');
+        _errorMessage = AppErrorMapper.genericMessage;
         _loading = false;
       });
     }
@@ -71,7 +73,7 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Scaffold(
       body: Stack(
         children: [
@@ -89,7 +91,7 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             ),
           ),
-          
+
           // Subtle glow decorations
           Positioned(
             top: -100,
@@ -208,11 +210,12 @@ class _AuthScreenState extends State<AuthScreen> {
                             icon: Image.asset(
                               'assets/google_logo.png',
                               height: 24,
-                              errorBuilder: (context, error, stackTrace) => const Icon(
-                                Icons.g_mobiledata_rounded,
-                                size: 28,
-                                color: Colors.redAccent,
-                              ),
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const Icon(
+                                    Icons.g_mobiledata_rounded,
+                                    size: 28,
+                                    color: Colors.redAccent,
+                                  ),
                             ),
                             label: const Text(
                               'Sign In with Google',
@@ -235,7 +238,9 @@ class _AuthScreenState extends State<AuthScreen> {
                                 ),
                               ),
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16.0,
+                                ),
                                 child: Text(
                                   'DEVELOPER BYPASS',
                                   style: theme.textTheme.labelSmall?.copyWith(
@@ -261,17 +266,26 @@ class _AuthScreenState extends State<AuthScreen> {
                             style: const TextStyle(color: Colors.white),
                             decoration: InputDecoration(
                               labelText: 'Dev Email',
-                              labelStyle: const TextStyle(color: Colors.white60),
-                              prefixIcon: const Icon(Icons.email_outlined, color: Colors.white60),
+                              labelStyle: const TextStyle(
+                                color: Colors.white60,
+                              ),
+                              prefixIcon: const Icon(
+                                Icons.email_outlined,
+                                color: Colors.white60,
+                              ),
                               filled: true,
                               fillColor: Colors.white.withOpacity(0.03),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(14),
-                                borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+                                borderSide: BorderSide(
+                                  color: Colors.white.withOpacity(0.1),
+                                ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(14),
-                                borderSide: const BorderSide(color: Color(0xFF6B4EFF)),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF6B4EFF),
+                                ),
                               ),
                             ),
                             keyboardType: TextInputType.emailAddress,
@@ -285,17 +299,26 @@ class _AuthScreenState extends State<AuthScreen> {
                             style: const TextStyle(color: Colors.white),
                             decoration: InputDecoration(
                               labelText: 'Dev Password',
-                              labelStyle: const TextStyle(color: Colors.white60),
-                              prefixIcon: const Icon(Icons.lock_outline, color: Colors.white60),
+                              labelStyle: const TextStyle(
+                                color: Colors.white60,
+                              ),
+                              prefixIcon: const Icon(
+                                Icons.lock_outline,
+                                color: Colors.white60,
+                              ),
                               filled: true,
                               fillColor: Colors.white.withOpacity(0.03),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(14),
-                                borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+                                borderSide: BorderSide(
+                                  color: Colors.white.withOpacity(0.1),
+                                ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(14),
-                                borderSide: const BorderSide(color: Color(0xFF6B4EFF)),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF6B4EFF),
+                                ),
                               ),
                             ),
                           ),
@@ -305,7 +328,10 @@ class _AuthScreenState extends State<AuthScreen> {
                           OutlinedButton(
                             style: OutlinedButton.styleFrom(
                               foregroundColor: const Color(0xFF6B4EFF),
-                              side: const BorderSide(color: Color(0xFF6B4EFF), width: 1.5),
+                              side: const BorderSide(
+                                color: Color(0xFF6B4EFF),
+                                width: 1.5,
+                              ),
                               minimumSize: const Size.fromHeight(54),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),

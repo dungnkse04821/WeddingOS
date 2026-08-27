@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../foundation/app_error.dart';
 import '../services/supabase_service.dart';
 
 class EventDateChangePreviewScreen extends StatefulWidget {
@@ -56,8 +57,9 @@ class _EventDateChangePreviewScreenState
         _loading = false;
       });
     } catch (e) {
+      final failure = await SupabaseService.instance.handleOperationalError(e);
       setState(() {
-        _errorMessage = e.toString();
+        _errorMessage = failure.message;
         _loading = false;
       });
     }
@@ -94,12 +96,12 @@ class _EventDateChangePreviewScreenState
         _submitting = false;
       });
 
-      final errStr = e.toString();
-      if (errStr.contains('STALE_IMPACT') || errStr.contains('40001')) {
+      final failure = await SupabaseService.instance.handleOperationalError(e);
+      if (failure.kind == AppErrorKind.staleImpact) {
         _showStaleImpactDialog();
       } else {
         setState(() {
-          _errorMessage = errStr;
+          _errorMessage = failure.message;
         });
       }
     }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/task_model.dart';
 import '../services/supabase_service.dart';
 import 'task_detail_screen.dart';
@@ -41,9 +42,13 @@ class _PlanningScreenState extends State<PlanningScreen> {
 
     try {
       final wList = await SupabaseService.instance.fetchMyWeddings();
-      final currentWedding = wList.firstWhere((w) => w['id'] == widget.weddingId);
-      
-      final eventList = await SupabaseService.instance.fetchWeddingEvents(widget.weddingId);
+      final currentWedding = wList.firstWhere(
+        (w) => w['id'] == widget.weddingId,
+      );
+
+      final eventList = await SupabaseService.instance.fetchWeddingEvents(
+        widget.weddingId,
+      );
       final memberList = await SupabaseService.instance.client
           .from('wedding_members')
           .select('id, display_name, profile_email, role, status')
@@ -63,8 +68,9 @@ class _PlanningScreenState extends State<PlanningScreen> {
         _loading = false;
       });
     } catch (e) {
+      final failure = await SupabaseService.instance.handleOperationalError(e);
       setState(() {
-        _errorMessage = 'Failed to load plan: $e';
+        _errorMessage = failure.message;
         _loading = false;
       });
     }
@@ -99,30 +105,37 @@ class _PlanningScreenState extends State<PlanningScreen> {
         );
 
         // Reload event list
-        final eventList = await SupabaseService.instance.fetchWeddingEvents(widget.weddingId);
+        final eventList = await SupabaseService.instance.fetchWeddingEvents(
+          widget.weddingId,
+        );
         setState(() {
           _events = List<Map<String, dynamic>>.from(eventList);
         });
       }
 
       // 2. Call initial plan generation RPC
-      final result = await SupabaseService.instance.generateInitialPlan(widget.weddingId);
+      final result = await SupabaseService.instance.generateInitialPlan(
+        widget.weddingId,
+      );
       final replayed = result['replayed'] as bool? ?? false;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(replayed 
-              ? 'Replayed cached initial plan tasks successfully.' 
-              : 'Initial plan generated from deterministic templates!'),
+          content: Text(
+            replayed
+                ? 'Replayed cached initial plan tasks successfully.'
+                : 'Initial plan generated from deterministic templates!',
+          ),
           backgroundColor: const Color(0xFF6B4EFF),
         ),
       );
 
       await _loadData();
     } catch (e) {
+      final failure = await SupabaseService.instance.handleOperationalError(e);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to generate plan: $e'),
+          content: Text(failure.message),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -136,7 +149,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
   Future<void> _toggleTaskStatus(TaskModel task) async {
     String nextStatus;
     String toastEvent;
-    
+
     if (task.status == 'TODO') {
       nextStatus = 'IN_PROGRESS';
       toastEvent = 'TASK_STARTED';
@@ -150,11 +163,13 @@ class _PlanningScreenState extends State<PlanningScreen> {
 
     try {
       await SupabaseService.instance.updateTaskStatus(task.id, nextStatus);
-      
+
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Planning action: $toastEvent (Task status updated to $nextStatus)'),
+          content: Text(
+            'Planning action: $toastEvent (Task status updated to $nextStatus)',
+          ),
           backgroundColor: const Color(0xFF6B4EFF),
           duration: const Duration(seconds: 2),
         ),
@@ -162,9 +177,10 @@ class _PlanningScreenState extends State<PlanningScreen> {
 
       await _loadData();
     } catch (e) {
+      final failure = await SupabaseService.instance.handleOperationalError(e);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to update status: $e'),
+          content: Text(failure.message),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -202,7 +218,10 @@ class _PlanningScreenState extends State<PlanningScreen> {
     int? dateOffset;
     DateTime? selectedDate;
 
-    final mainEvent = _events.firstWhere((e) => e['is_main_event'] == true, orElse: () => {});
+    final mainEvent = _events.firstWhere(
+      (e) => e['is_main_event'] == true,
+      orElse: () => {},
+    );
     if (mainEvent.isNotEmpty) {
       selectedEventId = mainEvent['id'] as String;
     }
@@ -214,7 +233,13 @@ class _PlanningScreenState extends State<PlanningScreen> {
           builder: (context, setDialogState) {
             return AlertDialog(
               backgroundColor: const Color(0xFF161226),
-              title: const Text('Add Custom Task', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              title: const Text(
+                'Add Custom Task',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -225,19 +250,44 @@ class _PlanningScreenState extends State<PlanningScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Task Name',
                         labelStyle: TextStyle(color: Colors.white60),
-                        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
-                        focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF6B4EFF))),
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.white24),
+                        ),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Color(0xFF6B4EFF)),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       dropdownColor: const Color(0xFF161226),
                       value: side,
-                      decoration: const InputDecoration(labelText: 'Side', labelStyle: TextStyle(color: Colors.white60)),
+                      decoration: const InputDecoration(
+                        labelText: 'Side',
+                        labelStyle: TextStyle(color: Colors.white60),
+                      ),
                       items: const [
-                        DropdownMenuItem(value: 'COMMON', child: Text('Common / Shared', style: TextStyle(color: Colors.white))),
-                        DropdownMenuItem(value: 'BRIDE_SIDE', child: Text("Bride's Side", style: TextStyle(color: Colors.white))),
-                        DropdownMenuItem(value: 'GROOM_SIDE', child: Text("Groom's Side", style: TextStyle(color: Colors.white))),
+                        DropdownMenuItem(
+                          value: 'COMMON',
+                          child: Text(
+                            'Common / Shared',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                        DropdownMenuItem(
+                          value: 'BRIDE_SIDE',
+                          child: Text(
+                            "Bride's Side",
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                        DropdownMenuItem(
+                          value: 'GROOM_SIDE',
+                          child: Text(
+                            "Groom's Side",
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
                       ],
                       onChanged: (val) => setDialogState(() => side = val!),
                     ),
@@ -245,11 +295,32 @@ class _PlanningScreenState extends State<PlanningScreen> {
                     DropdownButtonFormField<String>(
                       dropdownColor: const Color(0xFF161226),
                       value: deadlineIntent,
-                      decoration: const InputDecoration(labelText: 'Deadline Intent', labelStyle: TextStyle(color: Colors.white60)),
+                      decoration: const InputDecoration(
+                        labelText: 'Deadline Intent',
+                        labelStyle: TextStyle(color: Colors.white60),
+                      ),
                       items: const [
-                        DropdownMenuItem(value: 'NO_DEADLINE', child: Text('No Deadline', style: TextStyle(color: Colors.white))),
-                        DropdownMenuItem(value: 'USER_ABSOLUTE', child: Text('Custom Date (Absolute)', style: TextStyle(color: Colors.white))),
-                        DropdownMenuItem(value: 'USER_RELATIVE', child: Text('Relative to Main Event', style: TextStyle(color: Colors.white))),
+                        DropdownMenuItem(
+                          value: 'NO_DEADLINE',
+                          child: Text(
+                            'No Deadline',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                        DropdownMenuItem(
+                          value: 'USER_ABSOLUTE',
+                          child: Text(
+                            'Custom Date (Absolute)',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                        DropdownMenuItem(
+                          value: 'USER_RELATIVE',
+                          child: Text(
+                            'Relative to Main Event',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
                       ],
                       onChanged: (val) => setDialogState(() {
                         deadlineIntent = val!;
@@ -264,17 +335,21 @@ class _PlanningScreenState extends State<PlanningScreen> {
                         onPressed: () async {
                           final date = await showDatePicker(
                             context: context,
-                            initialDate: DateTime.now().add(const Duration(days: 90)),
+                            initialDate: DateTime.now().add(
+                              const Duration(days: 90),
+                            ),
                             firstDate: DateTime.now(),
-                            lastDate: DateTime.now().add(const Duration(days: 730)),
+                            lastDate: DateTime.now().add(
+                              const Duration(days: 730),
+                            ),
                           );
                           if (date != null) {
                             setDialogState(() => selectedDate = date);
                           }
                         },
                         child: Text(
-                          selectedDate == null 
-                              ? 'Pick Absolute Date' 
+                          selectedDate == null
+                              ? 'Pick Absolute Date'
                               : 'Selected: ${selectedDate!.toIso8601String().split('T').first}',
                           style: const TextStyle(color: Color(0xFFFF5E7E)),
                         ),
@@ -287,7 +362,8 @@ class _PlanningScreenState extends State<PlanningScreen> {
                         keyboardType: TextInputType.number,
                         style: const TextStyle(color: Colors.white),
                         decoration: const InputDecoration(
-                          labelText: 'Offset Days (e.g. -30 for 30 days before event)',
+                          labelText:
+                              'Offset Days (e.g. -30 for 30 days before event)',
                           labelStyle: TextStyle(color: Colors.white60),
                         ),
                         onChanged: (val) {
@@ -304,7 +380,10 @@ class _PlanningScreenState extends State<PlanningScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel', style: TextStyle(color: Colors.white38)),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.white38),
+                  ),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
@@ -333,22 +412,27 @@ class _PlanningScreenState extends State<PlanningScreen> {
         deadlineIntent: deadlineIntent,
         dateOffset: dateOffset,
         customOverrideDate: selectedDate,
-        weddingEventId: deadlineIntent == 'USER_RELATIVE' ? selectedEventId : null,
+        weddingEventId: deadlineIntent == 'USER_RELATIVE'
+            ? selectedEventId
+            : null,
         side: side,
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Planning action: TASK_CREATED (Custom task "${nameController.text.trim()}" added)'),
+          content: Text(
+            'Planning action: TASK_CREATED (Custom task "${nameController.text.trim()}" added)',
+          ),
           backgroundColor: const Color(0xFF6B4EFF),
         ),
       );
 
       await _loadData();
     } catch (e) {
+      final failure = await SupabaseService.instance.handleOperationalError(e);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to create task: $e'),
+          content: Text(failure.message),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -362,22 +446,31 @@ class _PlanningScreenState extends State<PlanningScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F0C1B),
       appBar: AppBar(
-        title: const Text('Wedding Planning Checklist', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Wedding Planning Checklist',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.white,
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF6B4EFF)))
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF6B4EFF)),
+            )
           : _errorMessage != null
-              ? _buildErrorState()
-              : _wedding!['initial_plan_generated_at'] == null
-                  ? _buildGeneratePlanPrompt()
-                  : _buildTaskDashboard(theme),
-      floatingActionButton: _wedding != null && _wedding!['initial_plan_generated_at'] != null
+          ? _buildErrorState()
+          : _wedding!['initial_plan_generated_at'] == null
+          ? _buildGeneratePlanPrompt()
+          : _buildTaskDashboard(theme),
+      floatingActionButton:
+          _wedding != null && _wedding!['initial_plan_generated_at'] != null
           ? FloatingActionButton(
               backgroundColor: const Color(0xFFFF5E7E),
               foregroundColor: Colors.white,
@@ -395,13 +488,23 @@ class _PlanningScreenState extends State<PlanningScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline_rounded, size: 64, color: Colors.redAccent),
+            const Icon(
+              Icons.error_outline_rounded,
+              size: 64,
+              color: Colors.redAccent,
+            ),
             const SizedBox(height: 16),
-            Text(_errorMessage!, style: const TextStyle(color: Colors.redAccent), textAlign: TextAlign.center),
+            Text(
+              _errorMessage!,
+              style: const TextStyle(color: Colors.redAccent),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: _loadData,
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6B4EFF)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6B4EFF),
+              ),
               child: const Text('Retry'),
             ),
           ],
@@ -411,7 +514,8 @@ class _PlanningScreenState extends State<PlanningScreen> {
   }
 
   Widget _buildGeneratePlanPrompt() {
-    final culturalContext = _wedding!['cultural_context'] as String? ?? 'TUY_CHON';
+    final culturalContext =
+        _wedding!['cultural_context'] as String? ?? 'TUY_CHON';
     String templateDesc = 'Custom general template with 5 core steps';
     if (culturalContext == 'VIETNAMESE') {
       templateDesc = 'Traditional Vietnamese templates: 7 cultural preparation events & tasks (Lễ dạm ngõ, mâm quả sính lễ, thiệp mời, nhà hàng, chuẩn bị MC)';
@@ -438,18 +542,30 @@ class _PlanningScreenState extends State<PlanningScreen> {
                   shape: BoxShape.circle,
                   color: const Color(0xFF6B4EFF).withOpacity(0.1),
                 ),
-                child: const Icon(Icons.auto_awesome_rounded, color: Color(0xFFFF5E7E), size: 48),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Color(0xFFFF5E7E),
+                  size: 48,
+                ),
               ),
               const SizedBox(height: 24),
               const Text(
                 'Generate Initial Plan',
-                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
               Text(
                 'Establish a reliable, server-side deterministic roadmap aligned with your cultural settings.',
-                style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13, height: 1.4),
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.6),
+                  fontSize: 13,
+                  height: 1.4,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
@@ -463,12 +579,19 @@ class _PlanningScreenState extends State<PlanningScreen> {
                   children: [
                     Text(
                       'Cultural Config: $culturalContext',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       templateDesc,
-                      style: const TextStyle(color: Colors.white38, fontSize: 11),
+                      style: const TextStyle(
+                        color: Colors.white38,
+                        fontSize: 11,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -480,7 +603,9 @@ class _PlanningScreenState extends State<PlanningScreen> {
                   backgroundColor: const Color(0xFF6B4EFF),
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 54),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   elevation: 0,
                 ),
                 onPressed: _generating ? null : _handleGeneratePlan,
@@ -491,7 +616,13 @@ class _PlanningScreenState extends State<PlanningScreen> {
                         children: [
                           Icon(Icons.flash_on_rounded, size: 20),
                           SizedBox(width: 8),
-                          Text('Build My Wedding Roadmap', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                          Text(
+                            'Build My Wedding Roadmap',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
                         ],
                       ),
               ),
@@ -519,7 +650,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
         itemBuilder: (context, index) {
           final event = _events[index];
           final isMain = event['is_main_event'] == true;
-          
+
           return Container(
             width: 220,
             margin: const EdgeInsets.only(right: 12),
@@ -528,7 +659,9 @@ class _PlanningScreenState extends State<PlanningScreen> {
               color: Colors.white.withOpacity(0.04),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isMain ? Colors.pinkAccent.withOpacity(0.3) : Colors.white10,
+                color: isMain
+                    ? Colors.pinkAccent.withOpacity(0.3)
+                    : Colors.white10,
               ),
             ),
             child: Row(
@@ -540,7 +673,11 @@ class _PlanningScreenState extends State<PlanningScreen> {
                     children: [
                       Text(
                         event['name'] as String,
-                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -561,14 +698,22 @@ class _PlanningScreenState extends State<PlanningScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.edit_calendar_rounded, size: 16, color: Colors.blueAccent),
+                      icon: const Icon(
+                        Icons.edit_calendar_rounded,
+                        size: 16,
+                        color: Colors.blueAccent,
+                      ),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       onPressed: () => _navigateToDateChangePreview(event),
                     ),
                     const SizedBox(height: 8),
                     IconButton(
-                      icon: const Icon(Icons.delete_outline_rounded, size: 16, color: Colors.redAccent),
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        size: 16,
+                        color: Colors.redAccent,
+                      ),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       onPressed: () => _navigateToRemovalPreview(event),
@@ -586,7 +731,9 @@ class _PlanningScreenState extends State<PlanningScreen> {
   Widget _buildTaskDashboard(ThemeData theme) {
     // 1. Apply filtering & search
     final filtered = _tasks.where((t) {
-      final nameMatches = t.name.toLowerCase().contains(_searchQuery.toLowerCase());
+      final nameMatches = t.name.toLowerCase().contains(
+        _searchQuery.toLowerCase(),
+      );
       final statusMatches = _statusFilter == 'ALL' || t.status == _statusFilter;
       final sideMatches = _sideFilter == 'ALL' || t.side == _sideFilter;
       return nameMatches && statusMatches && sideMatches;
@@ -621,13 +768,18 @@ class _PlanningScreenState extends State<PlanningScreen> {
                 decoration: InputDecoration(
                   hintText: 'Search preparation tasks...',
                   hintStyle: const TextStyle(color: Colors.white30),
-                  prefixIcon: const Icon(Icons.search_rounded, color: Colors.white30),
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    color: Colors.white30,
+                  ),
                   filled: true,
                   fillColor: Colors.white.withOpacity(0.03),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
+                    borderSide: BorderSide(
+                      color: Colors.white.withOpacity(0.08),
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -690,12 +842,20 @@ class _PlanningScreenState extends State<PlanningScreen> {
       padding: const EdgeInsets.only(right: 6.0),
       child: ChoiceChip(
         selected: isSelected,
-        label: Text(label, style: TextStyle(fontSize: 12, color: isSelected ? Colors.white : Colors.white60)),
+        label: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: isSelected ? Colors.white : Colors.white60,
+          ),
+        ),
         backgroundColor: Colors.transparent,
         selectedColor: const Color(0xFF6B4EFF),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: isSelected ? Colors.transparent : Colors.white10),
+          side: BorderSide(
+            color: isSelected ? Colors.transparent : Colors.white10,
+          ),
         ),
         onSelected: (val) {
           if (val) {
@@ -719,16 +879,23 @@ class _PlanningScreenState extends State<PlanningScreen> {
       final date = task.resolvedDeadlineAt!;
       deadlineStr = '${date.day}/${date.month}/${date.year}';
       if (task.dateOffset != null) {
-        deadlineStr += ' (T${task.dateOffset! >= 0 ? '+' : ''}${task.dateOffset} days)';
+        deadlineStr +=
+            ' (T${task.dateOffset! >= 0 ? '+' : ''}${task.dateOffset} days)';
       }
     } else if (task.weddingEventId != null && task.dateOffset != null) {
-      final linkedEvent = _events.firstWhere((e) => e['id'] == task.weddingEventId, orElse: () => {});
+      final linkedEvent = _events.firstWhere(
+        (e) => e['id'] == task.weddingEventId,
+        orElse: () => {},
+      );
       if (linkedEvent.isNotEmpty) {
         final name = linkedEvent['name'] as String? ?? 'Event';
-        if (linkedEvent['expected_month'] != null && linkedEvent['expected_year'] != null) {
-          deadlineStr = 'T${task.dateOffset! >= 0 ? '+' : ''}${task.dateOffset}d rel. to $name (Exp: ${linkedEvent['expected_month']}/${linkedEvent['expected_year']})';
+        if (linkedEvent['expected_month'] != null &&
+            linkedEvent['expected_year'] != null) {
+          deadlineStr =
+              'T${task.dateOffset! >= 0 ? '+' : ''}${task.dateOffset}d rel. to $name (Exp: ${linkedEvent['expected_month']}/${linkedEvent['expected_year']})';
         } else {
-          deadlineStr = 'T${task.dateOffset! >= 0 ? '+' : ''}${task.dateOffset}d rel. to $name';
+          deadlineStr =
+              'T${task.dateOffset! >= 0 ? '+' : ''}${task.dateOffset}d rel. to $name';
         }
       }
     }
@@ -750,8 +917,8 @@ class _PlanningScreenState extends State<PlanningScreen> {
         color: Colors.white.withOpacity(0.02),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isOverdue 
-              ? Colors.redAccent.withOpacity(0.2) 
+          color: isOverdue
+              ? Colors.redAccent.withOpacity(0.2)
               : Colors.white.withOpacity(0.04),
         ),
       ),
@@ -774,7 +941,11 @@ class _PlanningScreenState extends State<PlanningScreen> {
           padding: const EdgeInsets.only(top: 6.0),
           child: Row(
             children: [
-              Icon(Icons.calendar_month_rounded, size: 12, color: isOverdue ? Colors.redAccent : Colors.white30),
+              Icon(
+                Icons.calendar_month_rounded,
+                size: 12,
+                color: isOverdue ? Colors.redAccent : Colors.white30,
+              ),
               const SizedBox(width: 4),
               Text(
                 deadlineStr,
@@ -785,7 +956,14 @@ class _PlanningScreenState extends State<PlanningScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              Container(width: 3, height: 3, decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white12)),
+              Container(
+                width: 3,
+                height: 3,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white12,
+                ),
+              ),
               const SizedBox(width: 12),
               Text(
                 task.side,
@@ -794,7 +972,11 @@ class _PlanningScreenState extends State<PlanningScreen> {
             ],
           ),
         ),
-        trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white24, size: 14),
+        trailing: const Icon(
+          Icons.arrow_forward_ios_rounded,
+          color: Colors.white24,
+          size: 14,
+        ),
         onTap: () async {
           final changed = await Navigator.of(context).push(
             MaterialPageRoute(

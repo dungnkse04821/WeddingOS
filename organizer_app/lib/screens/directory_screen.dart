@@ -73,8 +73,9 @@ class _DirectoryScreenState extends State<DirectoryScreen>
         _loading = false;
       });
     } catch (e) {
+      final failure = await SupabaseService.instance.handleOperationalError(e);
       setState(() {
-        _errorMessage = 'Failed to load directory: $e';
+        _errorMessage = failure.message;
         _loading = false;
       });
     }

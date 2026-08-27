@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:organizer_app/screens/wedding_lifecycle_panel.dart';
 import 'package:organizer_app/services/wedding_lifecycle_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 Widget _app(Widget child) => MaterialApp(
   home: Scaffold(body: SingleChildScrollView(child: child)),
@@ -29,10 +30,7 @@ void main() {
   group('typed Wedding-name confirmation', () {
     test('trims, ignores case, and normalizes Unicode', () {
       expect(
-        weddingNamesMatch(
-          'Đám Cưới An & Bình',
-          '  đa\u0301m cưới an & bình  ',
-        ),
+        weddingNamesMatch('Đám Cưới An & Bình', '  đa\u0301m cưới an & bình  '),
         isTrue,
       );
     });
@@ -111,12 +109,7 @@ void main() {
       },
     );
     await tester.pumpWidget(
-      _app(
-        _panel(
-          service: service,
-          onDeleted: () async => deleted = true,
-        ),
-      ),
+      _app(_panel(service: service, onDeleted: () async => deleted = true)),
     );
 
     await tester.tap(find.byKey(const Key('delete-action')));
@@ -149,9 +142,18 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('delete-action')));
     await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(find.byKey(const Key('delete-name-input'))).controller?.text ?? '', isEmpty);
     expect(
-      tester.widget<FilledButton>(find.byKey(const Key('confirm-delete'))).onPressed,
+      tester
+              .widget<TextField>(find.byKey(const Key('delete-name-input')))
+              .controller
+              ?.text ??
+          '',
+      isEmpty,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('confirm-delete')))
+          .onPressed,
       isNull,
     );
   });
@@ -200,12 +202,13 @@ void main() {
         return {'status': 'DELETING'};
       },
     );
-    await tester.pumpWidget(
-      _app(_panel(status: 'DELETING', service: service)),
-    );
+    await tester.pumpWidget(_app(_panel(status: 'DELETING', service: service)));
     await tester.tap(find.byKey(const Key('retry-delete')));
     await tester.pumpAndSettle();
-    expect(find.text('Quá trình xóa chưa hoàn tất. Bạn có thể thử lại.'), findsWidgets);
+    expect(
+      find.text('Quá trình xóa chưa hoàn tất. Bạn có thể thử lại.'),
+      findsWidgets,
+    );
     await tester.tap(find.byKey(const Key('retry-delete')));
     await tester.pumpAndSettle();
     expect(calls, 2);
@@ -216,5 +219,22 @@ void main() {
     await tester.tap(find.byKey(const Key('delete-action')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('delete-name-input')), findsOneWidget);
+  });
+
+  test('wedding-delete 401 routes through centralized AUTH_LOST', () async {
+    var authLostCalls = 0;
+    final service = WeddingLifecycleService(
+      edgeInvoker: (_, __) async => throw const FunctionException(
+        status: 401,
+        details: 'raw provider authentication details',
+        reasonPhrase: 'Unauthorized',
+      ),
+      authLostHandler: () async => authLostCalls++,
+    );
+
+    final result = await service.deleteWedding('wedding-a');
+
+    expect(result, WeddingDeleteResult.authLost);
+    expect(authLostCalls, 1);
   });
 }
