@@ -5,6 +5,7 @@ Status:
 - M8 overall: **IN PROGRESS**
 - M8.1A Finance Contract Correctness: **COMPLETE**
 - M8.1B Wedding Concurrency + DELETING Read Matrix: **COMPLETE**
+- M8.1C Map Validation + Function Hygiene: **COMPLETE**
 
 Date: 2026-08-26
 
@@ -286,8 +287,86 @@ Defects fixed during verification:
 M8 remains IN PROGRESS. This slice does not close:
 
 - Edge request/timeout/error hardening;
-- public map-link validation;
 - full security matrix/provider evidence;
 - NFR benchmarks and evidence-based indexing;
 - CI, staging, CSP, deployment, observability, or recovery gates;
 - other P2/P3 findings in the approved M8 design.
+
+## M8.1C Map Validation + Function Hygiene
+
+This slice closes `M8-P1-007` and `M8-P2-004` through
+`00000000000017_batch_17.sql` without adding or changing any organizer, public,
+Edge, or trusted API surface.
+
+### Public Event Map URL Contract
+
+`public.wedding_events.map_link` remains nullable and retains its existing blank
+semantics. Every database write path is now covered by
+`chk_wedding_events_map_link_https`:
+
+- surrounding whitespace is ignored for validation;
+- the scheme comparison is case-insensitive;
+- non-blank values must be absolute `https://` URLs with a non-empty authority;
+- whitespace inside the URL, bare hosts, scheme-relative values, malformed
+  near-matches, and non-HTTPS schemes are rejected;
+- values are not fetched, rewritten, or silently repaired.
+
+No current row or repository `map_link` fixture used `http://`, so the PO's
+conditional HTTP compatibility exception was not activated. Existing HTTPS
+fixtures remain valid. The constraint protects direct Class-B inserts/updates,
+trusted or template writes, and therefore the map value emitted by D-INV-001.
+Guest Web receives the same DTO field and required no source change.
+
+### Function Security Hygiene
+
+The live pre-migration catalog showed both public trigger functions owned by
+`postgres` with default broad EXECUTE, while the Finance helper was already
+owned by `trusted_function_owner` but had no explicit search path and also
+inherited broad EXECUTE.
+
+Batch 17 now enforces:
+
+| Function | Owner | Definer | Search path | Direct EXECUTE |
+| --- | --- | --- | --- | --- |
+| `public.fn_invitation_targeting_guard()` | `trusted_function_owner` | yes | empty | owner only |
+| `public.fn_normalize_guest_contacts()` | `trusted_function_owner` | yes | empty | owner only |
+| `internal.recompute_installment_status(uuid)` | `trusted_function_owner` | no | empty | owner only |
+
+`PUBLIC`, `anon`, `authenticated`, and `service_role` have no direct EXECUTE on
+these helpers. PostgreSQL trigger invocation does not require client EXECUTE,
+and the Finance Class-C functions run as their shared trusted owner, so no
+replacement client or service grant was needed. The normalization, targeting,
+and installment recomputation behavior is unchanged.
+
+### Verification Evidence
+
+- clean `npx supabase db reset`: PASS through
+  `00000000000017_batch_17.sql`;
+- migration files: 18, Batch 00 through Batch 17;
+- full pgTAP: 15 files / 529 assertions / 0 failures;
+- dedicated Batch 17: 43 assertions covering URL validation, catalog ownership,
+  definer/search-path state, grants, trigger callers, FIN-001 recomputation, and
+  the D-INV-001 map DTO;
+- real local Auth/PostgREST: OWNER HTTPS update HTTP 204; `javascript:` and
+  `data:` HTTP 400; existing collaborator policy HTTP 204; cross-Wedding rows
+  changed 0; anonymous update HTTP 401;
+- real service-only D-INV-001 PostgREST bridge: HTTP 200 and the validated HTTPS
+  map value present in the event DTO;
+- invitation-resolve Deno smoke: 1 file / 4 tests / 0 failures using
+  `deno test --allow-env`;
+- Finance regression is included in the full DB suite, and Batch 17 directly
+  proves FIN-001 can still invoke recomputation and move the paid installment to
+  `PAID`.
+
+Security review passed: unsafe schemes cannot enter server state; public output
+can only contain values accepted by the database contract; trigger execution no
+longer depends on broad client grants; the internal Finance helper is hidden;
+RLS and cross-Wedding isolation are unchanged; and no custom GUC authority or
+new callable surface was introduced.
+
+Verification fixes were test-only: the installed pgTAP version lacked
+`has_check`, so the constraint assertion uses `pg_constraint`; the Guest trigger
+regression uses the existing authenticated UPDATE path because historical Batch
+04 grants do not include direct Guest INSERT; and the Edge smoke command includes
+its required environment-read permission. No unrelated Guest grant or Edge
+behavior was changed.
