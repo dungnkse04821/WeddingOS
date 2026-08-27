@@ -861,11 +861,11 @@ only after the PO decisions in section AD.
 Only the following policy decisions cannot be settled by current engineering
 evidence:
 
-1. **DELETING read matrix:** choose whether only active OWNER recovery identity is
-   readable, or whether all active members retain some/all reads until physical
-   deletion. Recommendation: expose only the minimum OWNER recovery identity and
-   Wedding switch metadata; deny ordinary graph reads to collaborators and normal
-   workspace clients.
+1. **Resolved - DELETING read matrix:** the PO approved minimum active OWNER
+   recovery reads only. The OWNER may read the Wedding selector/recovery row and
+   their own active OWNER membership. Normal business-graph and Storage reads are
+   denied; collaborators receive no DELETING Wedding or graph reads. ACTIVE and
+   ARCHIVED read behavior remains unchanged.
 2. **P2 release acceptance:** approve which, if any, P2 findings may ship with an
    owner and target date. Recommendation: allow provider-pagination debt only if
    deterministic pagination plus real list/delete checks pass; do not silently
@@ -875,9 +875,8 @@ evidence:
    network hash and add a non-reversible token hash dimension for Class-D after
    provider header verification; apply a generous authenticated owner limit to
    delete retries.
-4. **Receipt retention:** choose lifetime-of-Wedding replay or a documented time
-   window. Recommendation: retain through Wedding lifetime for MVP because the
-   current contracts do not define expiry and storage volume is small.
+4. **Resolved - receipt retention:** receipts remain for the lifetime of the
+   Wedding in MVP. No TTL, scheduled expiry, or retention cleanup is introduced.
 5. **Backup/recovery target:** approve minimum DB backup/restore and deployment
    rollback expectations, including RPO/RTO if the provider tier supports them.
    This decision must explicitly state that permanent Wedding deletion remains
@@ -900,20 +899,30 @@ database catalog.
 - M7 remains complete; no M7 contract was changed.
 - M6 Storage and signed-cover controls remain intact.
 - Receipt-backed and deliberately non-receipt-backed operations match approved
-  architecture, except the TOP-WED-001 concurrency implementation defect.
+  architecture. Batch 16 resolves the TOP-WED-001 concurrency defect without
+  changing replay semantics or receipt lifetime.
 - M7-AUTH-BRIDGE-001 remains the only explicit verified-actor bridge exception.
 - No new public or `api_v1` surface was introduced by this design.
 - Approved architecture documents contain operations not yet present in the
   delivered callable inventory. They are unimplemented/out-of-scope surfaces,
   not accidental exposure.
 
-### AE.2 Proposed Architecture Clarification
+### AE.2 Approved Architecture Clarification
 
-`M8-ARCH-PROPOSED-001` is limited to the DELETING read matrix. M7 already
-approved a recovery-only product state but did not enumerate the exact database
-SELECT policy. The PO decision in AD.1 must be recorded before M8.1 changes RLS.
-No other architecture amendment is currently required; the remaining P1 fixes
-bring implementation back to approved contracts.
+`M8-ARCH-PROPOSED-001` is **RESOLVED / APPROVED**. DELETING is a recovery-only
+database read state. An active OWNER may read the Wedding row needed by the
+selector/retry UX and only their own active OWNER membership row. Normal child
+graph, Finance, RSVP/invitation, and organizer Storage reads are denied. An
+active COLLABORATOR has no DELETING Wedding, membership-directory, or business
+graph read access. ACTIVE member reads and ARCHIVED member read-only access are
+preserved. The service-only M7 delete bridge and Storage cleanup authority are
+unchanged.
+
+Batch 16 implements this distinction by making the existing normal-read helpers
+lifecycle-aware for `ACTIVE` and `ARCHIVED`, while a dedicated OWNER recovery
+helper is used only by the Wedding row and actor's own membership-row policies.
+This is a row-level recovery surface, not a new general organizer API and not a
+grant of normal DELETING workspace access.
 
 ### AE.3 Documentation Drift
 
@@ -928,7 +937,8 @@ evidence.
 
 - real provider pagination fixture (M8-P2-006);
 - Class-D rate-limit dimensions/provider IP provenance (M8-P2-001);
-- receipt retention and concurrent replay convergence (M8-P2-002/003);
+- concurrent replay convergence for other receipt-backed operations
+  (M8-P2-002); receipt lifetime is resolved as Wedding lifetime;
 - minimal observability and operational recovery evidence
   (M8-P2-010/012);
 - post-MVP list pagination, analyzer INFO cleanup, and unmeasured optimization

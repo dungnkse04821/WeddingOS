@@ -4,6 +4,7 @@ Status:
 
 - M8 overall: **IN PROGRESS**
 - M8.1A Finance Contract Correctness: **COMPLETE**
+- M8.1B Wedding Concurrency + DELETING Read Matrix: **COMPLETE**
 
 Date: 2026-08-26
 
@@ -181,12 +182,109 @@ Finance services and screens were already wired, despite older M5 text describin
 scaffolding. M8.1A corrected concrete RPC and decimal defects in that wired code.
 Historical M5 evidence and status records were not rewritten.
 
+## M8.1B Wedding Concurrency + DELETING Read Matrix
+
+This slice closes `M8-P1-002` and `M8-P1-004` through
+`00000000000016_batch_16.sql`.
+
+### TOP-WED-001 Receipt Serialization
+
+`api_v1.create_wedding` still derives its actor only from `auth.uid()`, computes
+the existing semantic hash, and rereads the authoritative live Wedding on
+replay. Before reading or creating the receipt, it now obtains a
+transaction-scoped PostgreSQL advisory lock derived from the fixed operation
+type, authenticated actor UUID, and request UUID. The prior receipt insert's
+`ON CONFLICT DO NOTHING` was removed.
+
+Consequently, concurrent identical requests serialize on one receipt identity:
+the first transaction creates the Wedding/member/receipt atomically, and the
+second observes that committed receipt and follows the existing replay path.
+Hash collisions can only serialize unrelated operations; they cannot authorize
+or merge them because the receipt unique key and semantic hash remain
+authoritative. Receipt lifetime remains the Wedding lifetime, with no TTL or
+cleanup change.
+
+The repository-contained `supabase/verification/top_wed_001_concurrency.sql`
+harness opens two real PostgreSQL sessions with `dblink` and dispatches both
+authenticated calls before collecting either result. Final evidence:
+
+- concurrent callers: 2;
+- distinct returned Wedding IDs: 1;
+- committed Weddings: 1;
+- authoritative receipts: 1;
+- results: one initial create and one converged replay;
+- same request UUID with changed semantic payload: `REQUEST_ID_REUSED`.
+
+### Approved DELETING Read Matrix
+
+`M8-ARCH-PROPOSED-001` is resolved by the PO-approved recovery-only matrix.
+`security.is_active_wedding_member` and `security.is_wedding_owner` now require
+the Wedding lifecycle to be `ACTIVE` or `ARCHIVED`, preserving normal ACTIVE
+reads and ARCHIVED read-only behavior while automatically closing existing
+business-graph and Storage SELECT policies in DELETING.
+
+The new `security.can_owner_recover_deleting_wedding` helper requires the
+current `auth.uid()` to be an active OWNER of a DELETING Wedding. It is used only
+to retain:
+
+- the Wedding row needed for identity, name/status, selector, and retry UX;
+- that actor's own active OWNER membership row.
+
+All three lifecycle read helpers are `SECURITY DEFINER`, use an empty search
+path and fully qualified references, and are owned by
+`trusted_function_owner`; no generic administrative or actor-parameter surface
+was introduced.
+
+DELETING events, tasks, guests, groups, invitation parties, invitations,
+targeting, RSVP/event responses, Finance rows/summaries, member-directory rows,
+and organizer Storage objects are denied. Collaborators cannot read the
+DELETING Wedding or graph. Anonymous and cross-Wedding reads remain denied. The
+M7 service-only begin/finalize bridge is unaffected and OWNER delete recovery
+continues to converge.
+
+The existing Flutter flow required no production change: it fetches the Wedding
+metadata row, sees `DELETING`, receives only the current OWNER membership from
+the existing member query, and renders the recovery-only panel. Its task query
+returns no graph rows and the normal workspace remains hidden.
+
+### M8.1B Verification Evidence
+
+- clean `npx supabase db reset`: PASS through
+  `00000000000016_batch_16.sql`;
+- local Data API auto-exposure explicitly disabled in `supabase/config.toml`,
+  preserving the repository's explicit grant model under the current CLI;
+- full pgTAP: 14 files / 486 assertions / 0 failures;
+- dedicated Batch 16: 48 assertions covering lifecycle reads/writes, Storage,
+  replay, semantic mismatch, and M7 recovery compatibility;
+- real concurrency: 2 callers / 1 returned Wedding identity / 1 committed
+  Wedding / 1 receipt / `REQUEST_ID_REUSED` on changed semantics;
+- real local PostgREST: ACTIVE and ARCHIVED owner/member reads HTTP 200;
+  DELETING OWNER recovery rows 1 and graph rows 0; DELETING collaborator rows 0;
+  cross-Wedding rows 0; anonymous Wedding read HTTP 401;
+- real local Storage: ACTIVE and ARCHIVED organizer reads HTTP 200; DELETING
+  organizer read HTTP 400; service-role M7 cleanup authority was not changed;
+- focused Flutter lifecycle/recovery suite: 10 tests / 0 failures; no Flutter
+  source change or analyzer run was required.
+
+Security review passed: ARCHIVED reads remain intact; DELETING cannot be used as
+a collaborator read-only workspace; only current OWNER recovery identity is
+visible; Storage read is minimized; no cross-Wedding or anonymous access was
+introduced; semantic hashing and `auth.uid()` actor authority remain intact; no
+custom GUC security authority, generic lock surface, or new API was added.
+
+Defects fixed during verification:
+
+- corrected TOP-WED-001's ignored concurrent receipt-conflict race;
+- separated DELETING recovery identity from ordinary graph-read helpers;
+- explicitly disabled current local CLI Data API auto-exposure so reset keeps
+  the project's intended explicit grants and historical security tests;
+- kept the standalone concurrency harness outside pgTAP auto-discovery;
+- corrected new harness-only pgTAP and asynchronous `dblink` result handling.
+
 ## Remaining M8 Work
 
 M8 remains IN PROGRESS. This slice does not close:
 
-- TOP-WED-001 concurrency;
-- DELETING read-policy clarification;
 - Edge request/timeout/error hardening;
 - public map-link validation;
 - full security matrix/provider evidence;
