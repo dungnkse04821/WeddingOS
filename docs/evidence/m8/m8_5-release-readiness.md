@@ -67,3 +67,14 @@ The following evidence is also unavailable and cannot be fabricated:
 
 These are environmental release gates, not local code defects. M8 must remain
 in progress and must not be committed as complete until the evidence exists.
+
+## Cloudflare Pages import correction
+
+A real staging deployment proved Vite production build and Pages Functions
+discovery, then failed Pages Functions compilation because the entrypoints used
+`../../../_shared/invitation_proxy`. The helper is actually located at
+`guest_web/functions/_shared/invitation_proxy.ts`, so the entrypoints under
+`guest_web/functions/v1/invitation/` now import it through
+`../../_shared/invitation_proxy`. This is a source-controlled import-resolution
+fix only. Deployment CSP, routing, CORS, and forwarding-header provenance
+remain **IN PROGRESS** until Cloudflare redeploys and verifies the pushed fix.

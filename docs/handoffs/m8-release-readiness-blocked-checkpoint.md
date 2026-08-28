@@ -22,6 +22,11 @@ This is a temporary handoff, not the authoritative final M8 checkpoint.
   removes `X-Forwarded-For`/`X-Real-IP`, and relays only `CF-Connecting-IP`.
   It has no service-role key, generic upstream path, token/body logging, or
   client-selected authority.
+- A staging compiler error exposed a relative-import defect: the entrypoints
+  now use `../../_shared/invitation_proxy` to reach
+  `functions/_shared/invitation_proxy.ts`. Local entrypoint tests pass, but
+  Cloudflare must redeploy the corresponding commit before compilation can be
+  treated as verified.
 - `docs/release/mvp-release-runbook.md` documents deployment, public config,
   release/rollback, recovery expectations, and synthetic-only staging smoke.
 - `docs/evidence/m8/m8_5-release-readiness.md` records exact local results and

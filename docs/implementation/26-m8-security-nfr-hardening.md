@@ -825,3 +825,12 @@ reference-Android and staging-4G NFR results, Google Sign-In, restore/RPO/RTO,
 and rollback drills cannot be honestly verified. The verified source-controlled
 work may be committed, but M8 must not be marked complete while release-blocking
 `M8-P1-006` evidence remains unavailable.
+
+A real Cloudflare Pages staging deployment discovered and compiled the Pages
+Functions, but rejected the original `../../../_shared/invitation_proxy`
+imports. The two entrypoints are at `functions/v1/invitation/`, while the
+helper is at `functions/_shared/invitation_proxy.ts`; both imports now use the
+correct `../../_shared/invitation_proxy` path. Vite client build had already
+passed. This fixes the source-controlled module-resolution defect only; proxy
+routes, fixed upstream authority, header forwarding, and external staging gates
+are unchanged. A redeploy is still required before any staging check can pass.
