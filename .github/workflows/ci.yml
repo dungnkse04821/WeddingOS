@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  database:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.17.0
+      - name: Start local Supabase
+        shell: bash
+        run: npx supabase@2.116.0 start > "$RUNNER_TEMP/supabase-start.log"
+      - name: Reset database
+        run: npx supabase@2.116.0 db reset
+      - name: Run pgTAP suite
+        run: npx supabase@2.116.0 test db
+      - name: Scan tracked files for secrets
+        shell: pwsh
+        run: ./supabase/tests/m8_3_tracked_secret_scan.ps1
+
+  edge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.5
+      - name: Run Edge tests
+        shell: bash
+        run: >-
+          deno test --allow-env --allow-net --allow-read
+          supabase/functions/_shared/edge_safety_test.ts
+          supabase/functions/_shared/operational_log_test.ts
+          supabase/functions/invitation-resolve/index_test.ts
+          supabase/functions/invitation-rsvp/index_test.ts
+          supabase/functions/wedding-delete/index_test.ts
+
+  organizer-app:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: organizer_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.1
+          cache: true
+      - run: flutter pub get
+      - run: flutter test
+      - run: flutter analyze
+
+  guest-web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: guest_web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.17.0
+          cache: npm
+          cache-dependency-path: guest_web/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      - run: npm run build
