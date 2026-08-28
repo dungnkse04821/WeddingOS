@@ -35,7 +35,8 @@ function Assert-True([bool]$Condition, [string]$Message) {
   if (-not $Condition) { throw "M8.2A provider assertion failed: $Message" }
 }
 
-$statusLines = @(& npx supabase status -o env 2>$null)
+$statusLines = @(& cmd /d /c "npx supabase status -o env 2>NUL")
+if ($LASTEXITCODE -ne 0) { throw 'Local Supabase status command failed.' }
 $apiUrl = Get-LocalValue $statusLines 'API_URL'
 $anonKey = Get-LocalValue $statusLines 'ANON_KEY'
 $serviceKey = Get-LocalValue $statusLines 'SERVICE_ROLE_KEY'

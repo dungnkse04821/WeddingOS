@@ -1,4 +1,5 @@
 import { BoundedBodyError, createCorrelationId, type Fetcher, fetchWithDeadline, readBoundedJson, readBoundedResponseJson } from '../_shared/edge_safety.ts';
+import { logEdgeCompletion } from '../_shared/operational_log.ts';
 
 const json = (body: unknown, status = 200, requestId = createCorrelationId()) =>
   new Response(JSON.stringify(body), {
@@ -164,10 +165,15 @@ async function callBridge(
 // verified empty between those calls.
 export async function beginWeddingDelete(request: Request): Promise<Response> {
   const requestId = createCorrelationId();
+  const startedAt = performance.now();
   try {
-    return await beginWeddingDeleteCore(request, requestId);
+    const response = await beginWeddingDeleteCore(request, requestId);
+    logEdgeCompletion('wedding_delete', requestId, startedAt, response.status);
+    return response;
   } catch (_) {
-    return json({ ok: false, error_code: 'TEMPORARY_ERROR' }, 503, requestId);
+    const response = json({ ok: false, error_code: 'TEMPORARY_ERROR' }, 503, requestId);
+    logEdgeCompletion('wedding_delete', requestId, startedAt, response.status, console.log, true);
+    return response;
   }
 }
 

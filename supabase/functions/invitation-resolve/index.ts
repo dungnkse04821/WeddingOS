@@ -1,4 +1,5 @@
 import { BoundedBodyError, boundedInteger, createCorrelationId, fetchWithDeadline, readBoundedJson, readBoundedResponseJson } from '../_shared/edge_safety.ts';
+import { logEdgeCompletion } from '../_shared/operational_log.ts';
 
 type ResolveRpcResult = {
   ok: boolean;
@@ -85,22 +86,29 @@ export function networkSignal(request: Request): string {
 }
 
 export async function resolveInvitation(request: Request): Promise<Response> {
+  const startedAt = performance.now();
+  const requestId = createCorrelationId();
   let headers = securityHeaders(null, new Set());
+  headers.set('X-Request-ID', requestId);
   try {
     const allowedOrigins = parseAllowedOrigins(
       Deno.env.get('GUEST_WEB_ALLOWED_ORIGINS'),
     );
     const origin = request.headers.get('origin');
     headers = securityHeaders(origin, allowedOrigins);
-    headers.set('X-Request-ID', createCorrelationId());
-    return await resolveInvitationCore(
+    headers.set('X-Request-ID', requestId);
+    const response = await resolveInvitationCore(
       request,
       allowedOrigins,
       origin,
       headers,
     );
+    logEdgeCompletion('invitation_resolve', requestId, startedAt, response.status);
+    return response;
   } catch (_) {
-    return publicError(503, 'TEMPORARY_ERROR', headers);
+    const response = publicError(503, 'TEMPORARY_ERROR', headers);
+    logEdgeCompletion('invitation_resolve', requestId, startedAt, response.status, console.log, true);
+    return response;
   }
 }
 

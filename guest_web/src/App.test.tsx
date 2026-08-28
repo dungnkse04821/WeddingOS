@@ -81,7 +81,10 @@ describe('Guest invitation shell', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true, invitation: withCover }), { status: 200 })));
     window.history.replaceState(null, '', `/#/invite/${token}`);
     render(<App />);
-    expect(await screen.findByAltText('Ảnh đại diện đám cưới')).toHaveAttribute('src', withCover.cover_photo_signed_url);
+    const cover = await screen.findByAltText('Ảnh đại diện đám cưới');
+    expect(cover).toHaveAttribute('src', withCover.cover_photo_signed_url);
+    fireEvent.error(cover);
+    expect(cover).not.toBeVisible();
   });
 
   it('renders invalid invitation state and clears session token', async () => {
@@ -105,6 +108,22 @@ describe('Guest invitation shell', () => {
     window.history.replaceState(null, '', `/#/invite/${token}`);
     render(<App />);
     expect(await screen.findByText('Tạm thời chưa tải được')).toBeInTheDocument();
+  });
+
+  it('manually retries a temporary resolve failure without persisting the token locally', async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch https://provider.example'))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, invitation }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    window.history.replaceState(null, '', `/#/invite/${token}`);
+    render(<App />);
+
+    expect(await screen.findByText('Tạm thời chưa tải được')).toBeInTheDocument();
+    expect(screen.queryByText(/provider\.example|Failed to fetch|TypeError/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
+    expect(await screen.findByText('Gia đình bác Tư')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(window.localStorage.length).toBe(0);
   });
 
   it('submits only the changed RSVP event and shows the authoritative warning', async () => {

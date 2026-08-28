@@ -9,6 +9,8 @@ Status:
 - M8.1: **COMPLETE**
 - M8.2A Edge Resource Bounds & Failure Envelopes: **COMPLETE**
 - M8.2B Flutter Auth/Session Reliability: **COMPLETE**
+- M8.2C Guest Web / Observability Reliability: **COMPLETE**
+- M8.2: **COMPLETE**
 
 Date: 2026-08-26
 
@@ -559,3 +561,84 @@ remains valid. No backend simplification or lifecycle redesign was required.
 M8 remains IN PROGRESS. Guest Web CSP, CI/staging (including real Google OAuth
 deployment values), NFR benchmarks, full security-matrix evidence, broad
 observability, and unrelated P2/P3 findings remain outside this slice.
+
+## M8.2C Guest Web Security and Reliability
+
+This slice closes `M8-P1-010`, `M8-P2-010`, and the MVP requirement in
+`M8-P2-011`. M8 overall remains **IN PROGRESS**; CI/staging, measured NFR gates,
+the full release security matrix, and unrelated findings remain later slices.
+
+### Cloudflare Pages Security Policy
+
+`guest_web/public/_headers` is the committed Cloudflare Pages policy and Vite
+copies it to `dist/_headers` during the production build. The app shell uses
+`Cache-Control: no-store`; fingerprinted `/assets/*` files use a one-year
+immutable cache policy. Browser protections include `nosniff`, `no-referrer`,
+a deny-by-default Permissions Policy, and a CSP with:
+
+- `default-src`, scripts, styles, fonts, forms, base URLs, and API connections
+  restricted to same origin;
+- no `unsafe-eval`, inline-script exception, generic source wildcard, frame,
+  object, or worker authority;
+- `frame-ancestors 'none'` for clickjacking protection;
+- HTTPS Supabase subdomains allowed only for optional signed cover images.
+
+The production Guest API contract remains same-origin. Deployment must route
+`/v1/invitation/resolve` and `/v1/invitation/rsvp` accordingly rather than
+weakening `connect-src`. Invitation tokens still enter through the URL fragment,
+are scrubbed from browser history, live only in `sessionStorage`, and are never
+written to `localStorage`, markup, user errors, or logs.
+
+### Fetch Recovery and Optional Media
+
+Guest resolve now has a 15-second browser deadline, allowing the Edge DB and
+optional cover-signing stages to complete within their server deadlines. RSVP
+has a 12-second browser deadline. Both use `AbortController`; timeout and network
+details map to the existing bounded temporary-unavailable product states. Resolve
+offers an explicit manual retry. RSVP never auto-replays a write: the entered
+form state remains in memory and the guest may deliberately submit again.
+
+Signed-cover load failure remains non-blocking: the failed image is hidden while
+the invitation and RSVP stay usable, and its signed URL is never included in an
+error. Proactive signed-cover refresh is not needed for the current MVP contract.
+
+### Platform-Native Operational Events
+
+All three Edge routes emit one platform-native JSON completion event using the
+same server-generated `X-Request-ID`. The allowlisted event fields are:
+
+`event`, `route`, `outcome`, `status_category`, `duration_ms`,
+`correlation_id`, `retry_required`, and `rate_limited`.
+
+The fixed outcome set distinguishes success, rejection, rate limiting,
+retry-required provider/5xx outcomes, and unexpected exceptions. The logger has
+no arbitrary metadata parameter, so bearer or invitation tokens, request bodies,
+guest/Finance data, service credentials, signed URLs, Storage paths, provider
+responses, and stack traces cannot enter this event shape. No external APM or
+telemetry dependency was added.
+
+### Verification Evidence
+
+- Deno 2.9.5 full Edge suite: 5 files / 32 tests / 0 failures;
+- Guest Web: 4 files / 15 tests / 0 failures; ESLint PASS;
+- production build: PASS in 751 ms; JavaScript 203.23 kB / 64.36 kB gzip;
+  `dist/_headers` present and byte-for-byte sourced from the committed public
+  artifact;
+- DB smoke: 15 pgTAP files / 529 assertions / 0 failures;
+- real local Auth/Edge/PostgREST/Storage smoke: invitation resolve HTTP 200,
+  RSVP HTTP 200, Wedding delete HTTP 200, fresh delete prefix entries 0,
+  deleted Wedding rows 0, and preserved Auth users 1;
+- deterministic Guest tests cover resolve timeout, RSVP timeout with no
+  automatic replay, network failure redaction, manual resolve recovery,
+  non-blocking cover failure, fragment/session-only token handling, and the
+  committed CSP/header contract;
+- Edge tests prove the structured allowlist, correlation ID, outcome flags, and
+  absence of token, authorization, signed URL, service-role, body, and guest
+  fields.
+
+The only verification fix outside runtime code was making the existing
+`m8_2a_edge_provider_smoke.ps1` tolerate the Supabase CLI's stderr warning for
+intentionally disabled optional services while still checking its exit code and
+every provider post-condition. The harness requires PowerShell 7 because it uses
+`SkipHttpErrorCheck`; no fixture, credential, token, provider response, or build
+output is retained.

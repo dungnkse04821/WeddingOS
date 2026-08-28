@@ -1,15 +1,46 @@
 import type { ResolveResponse, RsvpSubmitResponse } from './types';
 
 const defaultEndpoint = '/v1/invitation/resolve';
+export const RESOLVE_TIMEOUT_MS = 15_000;
+export const RSVP_TIMEOUT_MS = 12_000;
 
-export async function resolveInvitation(rawToken: string): Promise<ResolveResponse> {
+type Fetcher = typeof fetch;
+type RequestOptions = {
+  fetcher?: Fetcher;
+  schedule?: typeof setTimeout;
+  cancel?: typeof clearTimeout;
+};
+
+async function fetchWithTimeout(
+  endpoint: string,
+  init: Parameters<Fetcher>[1],
+  timeoutMs: number,
+  options: RequestOptions,
+): Promise<Response> {
+  const controller = new AbortController();
+  const schedule = options.schedule ?? setTimeout;
+  const cancel = options.cancel ?? clearTimeout;
+  const timer = schedule(() => controller.abort(), timeoutMs);
+  try {
+    return await (options.fetcher ?? fetch)(endpoint, { ...init, signal: controller.signal });
+  } finally {
+    cancel(timer);
+  }
+}
+
+export async function resolveInvitation(rawToken: string, options: RequestOptions = {}): Promise<ResolveResponse> {
   const endpoint = import.meta.env.VITE_INVITATION_RESOLVE_URL ?? defaultEndpoint;
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    cache: 'no-store',
-    body: JSON.stringify({ raw_token: rawToken }),
-  });
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store',
+      body: JSON.stringify({ raw_token: rawToken }),
+    }, RESOLVE_TIMEOUT_MS, options);
+  } catch {
+    return { ok: false, error_code: 'TEMPORARY_ERROR' };
+  }
 
   const body = await response.json().catch(() => null);
   if (response.status === 429) {
@@ -28,12 +59,17 @@ export async function resolveInvitation(rawToken: string): Promise<ResolveRespon
 export async function submitRsvp(rawToken: string, payload: {
   responses: Array<{ event_id: string; response_status: 'ATTENDING' | 'NOT_ATTENDING'; attending_count: number }>;
   optional_fields: Record<string, unknown>;
-}): Promise<RsvpSubmitResponse> {
+}, options: RequestOptions = {}): Promise<RsvpSubmitResponse> {
   const endpoint = import.meta.env.VITE_INVITATION_RSVP_URL ?? '/v1/invitation/rsvp';
-  const response = await fetch(endpoint, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store',
-    body: JSON.stringify({ raw_token: rawToken, ...payload }),
-  });
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(endpoint, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store',
+      body: JSON.stringify({ raw_token: rawToken, ...payload }),
+    }, RSVP_TIMEOUT_MS, options);
+  } catch {
+    return { ok: false, error_code: 'TEMPORARY_UNAVAILABLE' };
+  }
   const body = await response.json().catch(() => null);
   if (body?.ok === true) return body as RsvpSubmitResponse;
   if (response.status === 429) return { ok: false, error_code: 'RATE_LIMITED' };

@@ -7,6 +7,7 @@ import './styles.css';
 
 export default function App() {
   const [state, setState] = useState<ResolveState>({ kind: 'loading' });
+  const [resolveAttempt, setResolveAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,25 +42,26 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [resolveAttempt]);
 
   return (
     <main className="shell">
       {state.kind === 'loading' && <StatusPanel title="Đang mở thiệp..." body="WeddingOS đang xác thực liên kết mời của bạn." />}
       {state.kind === 'invalid' && <StatusPanel title="Thiệp không khả dụng" body="Liên kết có thể đã hết hiệu lực hoặc không còn được mở." />}
       {state.kind === 'rate-limited' && <StatusPanel title="Vui lòng thử lại sau" body="Có quá nhiều yêu cầu trong thời gian ngắn. Hãy đợi một chút rồi tải lại trang." />}
-      {state.kind === 'temporary-error' && <StatusPanel title="Tạm thời chưa tải được" body="Hệ thống đang bận. Vui lòng thử lại sau ít phút." />}
+      {state.kind === 'temporary-error' && <StatusPanel title="Tạm thời chưa tải được" body="Không thể kết nối lúc này. Vui lòng thử lại." actionLabel="Thử lại" onAction={() => { setState({ kind: 'loading' }); setResolveAttempt((value) => value + 1); }} />}
       {state.kind === 'valid' && <InvitationPage invitation={state.invitation} />}
     </main>
   );
 }
 
-function StatusPanel({ title, body }: { title: string; body: string }) {
+function StatusPanel({ title, body, actionLabel, onAction }: { title: string; body: string; actionLabel?: string; onAction?: () => void }) {
   return (
     <section className="status-card" role="status">
       <p className="eyebrow">WeddingOS</p>
       <h1>{title}</h1>
       <p>{body}</p>
+      {actionLabel && onAction && <button type="button" onClick={onAction}>{actionLabel}</button>}
     </section>
   );
 }

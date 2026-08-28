@@ -1,5 +1,6 @@
 import { isValidRawToken, networkSignal, parseAllowedOrigins, publicError, securityHeaders, sha256Hex } from '../invitation-resolve/index.ts';
 import { BoundedBodyError, boundedInteger, createCorrelationId, fetchWithDeadline, readBoundedJson, readBoundedResponseJson } from '../_shared/edge_safety.ts';
+import { logEdgeCompletion } from '../_shared/operational_log.ts';
 
 type SubmitResult = {
   ok: boolean;
@@ -76,17 +77,24 @@ function validResponses(
 }
 
 export async function submitRsvp(request: Request): Promise<Response> {
+  const startedAt = performance.now();
+  const requestId = createCorrelationId();
   let headers = securityHeaders(null, new Set());
+  headers.set('X-Request-ID', requestId);
   try {
     const allowedOrigins = parseAllowedOrigins(
       Deno.env.get('GUEST_WEB_ALLOWED_ORIGINS'),
     );
     const origin = request.headers.get('origin');
     headers = securityHeaders(origin, allowedOrigins);
-    headers.set('X-Request-ID', createCorrelationId());
-    return await submitRsvpCore(request, allowedOrigins, origin, headers);
+    headers.set('X-Request-ID', requestId);
+    const response = await submitRsvpCore(request, allowedOrigins, origin, headers);
+    logEdgeCompletion('invitation_rsvp', requestId, startedAt, response.status);
+    return response;
   } catch (_) {
-    return publicError(503, 'TEMPORARY_UNAVAILABLE', headers);
+    const response = publicError(503, 'TEMPORARY_UNAVAILABLE', headers);
+    logEdgeCompletion('invitation_rsvp', requestId, startedAt, response.status, console.log, true);
+    return response;
   }
 }
 
