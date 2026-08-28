@@ -172,12 +172,24 @@ UPDATE public.weddings SET status='DELETING' WHERE id='$($weddingIds[2])';
   Assert-True ((Get-RowCount $crossWedding) -eq 0) 'cross-Wedding denial'
   Assert-True (($anonWedding.Status -ne 200) -or ((Get-RowCount $anonWedding) -eq 0)) 'anonymous denial'
 
+  $activeStorageHeaders = User-Headers 0
+  $activeStorageHeaders['x-upsert'] = 'true'
+  $activeUpload = Invoke-SafeRequest -Method POST -Uri "$apiUrl/storage/v1/object/wedding_media/weddings/$($weddingIds[0])/cover.webp" -Headers $activeStorageHeaders -Body $webp -ContentType 'image/webp'
+  $archivedUpload = Invoke-SafeRequest -Method POST -Uri "$apiUrl/storage/v1/object/wedding_media/weddings/$($weddingIds[1])/cover.webp" -Headers $activeStorageHeaders -Body $webp -ContentType 'image/webp'
+  $deletingUpload = Invoke-SafeRequest -Method POST -Uri "$apiUrl/storage/v1/object/wedding_media/weddings/$($weddingIds[2])/cover.webp" -Headers $activeStorageHeaders -Body $webp -ContentType 'image/webp'
+  Assert-True ($activeUpload.Status -eq 200) 'ACTIVE owner Storage upload'
+  Assert-True ($archivedUpload.Status -ne 200) 'ARCHIVED owner Storage write denial'
+  Assert-True ($deletingUpload.Status -ne 200) 'DELETING owner Storage write denial'
+
   $activeCover = Invoke-SafeRequest -Method GET -Uri "$apiUrl/storage/v1/object/authenticated/wedding_media/weddings/$($weddingIds[0])/cover.webp" -Headers (User-Headers 0)
   $archivedCover = Invoke-SafeRequest -Method GET -Uri "$apiUrl/storage/v1/object/authenticated/wedding_media/weddings/$($weddingIds[1])/cover.webp" -Headers (User-Headers 0)
   $deletingCover = Invoke-SafeRequest -Method GET -Uri "$apiUrl/storage/v1/object/authenticated/wedding_media/weddings/$($weddingIds[2])/cover.webp" -Headers (User-Headers 0)
   Assert-True ($activeCover.Status -eq 200) 'ACTIVE owner Storage read'
   Assert-True ($archivedCover.Status -eq 200) 'ARCHIVED owner Storage read'
   Assert-True ($deletingCover.Status -ne 200) 'DELETING owner Storage read denial'
+  $organizerDelete = Invoke-SafeRequest -Method DELETE -Uri "$apiUrl/storage/v1/object/wedding_media" -Headers (User-Headers 0) -Body (@{ prefixes = @("weddings/$($weddingIds[0])/cover.webp") } | ConvertTo-Json -Compress)
+  $afterOrganizerDelete = Invoke-SafeRequest -Method GET -Uri "$apiUrl/storage/v1/object/authenticated/wedding_media/weddings/$($weddingIds[0])/cover.webp" -Headers (User-Headers 0)
+  Assert-True ($afterOrganizerDelete.Status -eq 200) 'organizer Storage DELETE has no effective authority even if provider returns success'
 
   [pscustomobject]@{
     Status = 'PASS'
@@ -193,6 +205,11 @@ UPDATE public.weddings SET status='DELETING' WHERE id='$($weddingIds[2])';
     ActiveStorageStatus = $activeCover.Status
     ArchivedStorageStatus = $archivedCover.Status
     DeletingStorageStatus = $deletingCover.Status
+    ActiveStorageUpload = $activeUpload.Status
+    ArchivedStorageUpload = $archivedUpload.Status
+    DeletingStorageUpload = $deletingUpload.Status
+    OrganizerDeleteStatus = $organizerDelete.Status
+    OrganizerObjectAfterDelete = $afterOrganizerDelete.Status
   } | Format-List
 }
 finally {

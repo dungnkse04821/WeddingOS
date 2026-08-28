@@ -78,11 +78,22 @@ export function publicError(
 }
 
 export function networkSignal(request: Request): string {
-  const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]
-    ?.trim();
-  return request.headers.get('cf-connecting-ip')?.trim() ||
-    forwardedFor ||
-    'unknown-network';
+  // Only Cloudflare's provider header is eligible for a network partition.
+  // Direct local/Supabase requests can supply X-Forwarded-For and X-Real-IP.
+  return request.headers.get('cf-connecting-ip')?.trim() || 'unverified-network';
+}
+
+export async function classDLimiterKey(
+  route: 'D-INV-001' | 'D-RSV-001',
+  rawToken: string,
+  request: Request,
+): Promise<string> {
+  const [networkHash, tokenHash] = await Promise.all([
+    sha256Hex(`${route}:network:${networkSignal(request)}`),
+    sha256Hex(`${route}:token:${rawToken}`),
+  ]);
+  // The persisted key is route-scoped and contains only truncated SHA-256 output.
+  return `${route}:n:${networkHash.slice(0, 32)}:t:${tokenHash.slice(0, 32)}`;
 }
 
 export async function resolveInvitation(request: Request): Promise<Response> {
@@ -155,7 +166,7 @@ async function resolveInvitationCore(
   }
 
   try {
-    const networkHash = await sha256Hex(`D-INV-001:${networkSignal(request)}`);
+    const limiterKey = await classDLimiterKey('D-INV-001', rawToken, request);
     const rpcResponse = await fetchWithDeadline(
       fetch,
       `${supabaseUrl}/rest/v1/rpc/resolve_public_invitation`,
@@ -170,7 +181,7 @@ async function resolveInvitationCore(
         },
         body: JSON.stringify({
           p_raw_token: rawToken,
-          p_limiter_key: `D-INV-001:ip:${networkHash}`,
+          p_limiter_key: limiterKey,
           p_rate_limit_threshold: boundedInteger(
             Deno.env.get('CLASS_D_RESOLVE_RATE_LIMIT'),
             30,

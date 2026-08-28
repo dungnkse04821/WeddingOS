@@ -51,6 +51,9 @@ $deleteWedding = '82a00000-0000-0000-0000-000000000002'
 $eventId = '82a10000-0000-4000-8000-000000000001'
 $rawToken = 'CDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk01234567'
 $userId = $null
+$storagePaths = @("weddings/$deleteWedding/cover.webp", "weddings/$deleteWedding/nested/extra.webp") + (
+  0..100 | ForEach-Object { "weddings/$deleteWedding/pagination/object-$($_.ToString('000')).webp" }
+)
 
 try {
   $created = Invoke-SafeRequest -Method POST -Uri "$apiUrl/auth/v1/admin/users" -Headers @{
@@ -89,7 +92,7 @@ INSERT INTO public.invitation_credentials(invitation_id,token_hash)
   $fixtureSql | & docker exec -i $dbContainer psql -U postgres -d postgres -v ON_ERROR_STOP=1 | Out-Null
 
   $webp = [byte[]](0x52,0x49,0x46,0x46,0x4D,0x38,0x32,0x41)
-  foreach ($path in @("weddings/$deleteWedding/cover.webp", "weddings/$deleteWedding/nested/extra.webp")) {
+  foreach ($path in $storagePaths) {
     $upload = Invoke-SafeRequest -Method POST -Uri "$apiUrl/storage/v1/object/wedding_media/$path" -Headers @{
       apikey = $serviceKey
       Authorization = "Bearer $serviceKey"
@@ -97,6 +100,17 @@ INSERT INTO public.invitation_credentials(invitation_id,token_hash)
     } -Body $webp -ContentType 'image/webp'
     Assert-True ($upload.Status -eq 200) "Storage fixture upload returned HTTP $($upload.Status)"
   }
+
+  $pageOne = Invoke-SafeRequest -Method POST -Uri "$apiUrl/storage/v1/object/list/wedding_media" -Headers @{
+    apikey = $serviceKey
+    Authorization = "Bearer $serviceKey"
+  } -Body (@{ prefix = "weddings/$deleteWedding/pagination/"; limit = 100; offset = 0 } | ConvertTo-Json -Compress)
+  $pageTwo = Invoke-SafeRequest -Method POST -Uri "$apiUrl/storage/v1/object/list/wedding_media" -Headers @{
+    apikey = $serviceKey
+    Authorization = "Bearer $serviceKey"
+  } -Body (@{ prefix = "weddings/$deleteWedding/pagination/"; limit = 100; offset = 100 } | ConvertTo-Json -Compress)
+  Assert-True (@($pageOne.Json).Count -eq 100) "Storage pagination first page returned $(@($pageOne.Json).Count) entries"
+  Assert-True (@($pageTwo.Json).Count -ge 1) "Storage pagination second page returned no entries"
 
   $guestHeaders = @{ apikey = $anonKey; Origin = 'http://localhost:5173'; 'x-forwarded-for' = '198.51.100.82' }
   $resolve = Invoke-SafeRequest -Method POST -Uri "$apiUrl/functions/v1/invitation-resolve" -Headers $guestHeaders -Body (@{ raw_token = $rawToken } | ConvertTo-Json -Compress)
@@ -108,6 +122,16 @@ INSERT INTO public.invitation_credentials(invitation_id,token_hash)
     optional_fields = @{ guest_message = 'M8.2A provider smoke' }
   } | ConvertTo-Json -Depth 5 -Compress)
   Assert-True ($rsvp.Status -eq 200 -and [bool]$rsvp.Json.ok) "RSVP returned HTTP $($rsvp.Status)"
+
+  $invalidResolve = Invoke-SafeRequest -Method POST -Uri "$apiUrl/functions/v1/invitation-resolve" -Headers $guestHeaders -Body (@{
+    raw_token = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk012340'
+    wedding_id = $deleteWedding
+  } | ConvertTo-Json -Compress)
+  Assert-True ($invalidResolve.Status -eq 404) "invalid credential returned HTTP $($invalidResolve.Status)"
+
+  "UPDATE public.invitation_credentials SET is_active = false, revoked_at = now() WHERE invitation_id = '82a30000-0000-0000-0000-000000000001';" | & docker exec -i $dbContainer psql -U postgres -d postgres -v ON_ERROR_STOP=1 | Out-Null
+  $revokedResolve = Invoke-SafeRequest -Method POST -Uri "$apiUrl/functions/v1/invitation-resolve" -Headers $guestHeaders -Body (@{ raw_token = $rawToken } | ConvertTo-Json -Compress)
+  Assert-True ($revokedResolve.Status -eq 404) "revoked credential returned HTTP $($revokedResolve.Status)"
 
   $delete = Invoke-SafeRequest -Method POST -Uri "$apiUrl/functions/v1/wedding-delete" -Headers @{
     apikey = $anonKey
@@ -130,13 +154,23 @@ INSERT INTO public.invitation_credentials(invitation_id,token_hash)
     Status = 'PASS'
     InvitationResolve = $resolve.Status
     RsvpSubmit = $rsvp.Status
+    InvalidCredential = $invalidResolve.Status
+    RevokedCredential = $revokedResolve.Status
     WeddingDelete = $delete.Status
     DeleteStorageEntries = @($storageList.Json).Count
+    ProviderPaginationPageOne = @($pageOne.Json).Count
+    ProviderPaginationPageTwo = @($pageTwo.Json).Count
     DeletedWeddingRows = [int]$postcondition[0]
     PreservedAuthUsers = [int]$postcondition[1]
   } | Format-List
 }
 finally {
+  if ($serviceKey -and $apiUrl -and $storagePaths) {
+    Invoke-SafeRequest -Method DELETE -Uri "$apiUrl/storage/v1/object/wedding_media" -Headers @{
+      apikey = $serviceKey
+      Authorization = "Bearer $serviceKey"
+    } -Body (@{ prefixes = $storagePaths } | ConvertTo-Json -Compress) | Out-Null
+  }
   if ($dbContainer) {
     $cleanupSql = "DELETE FROM public.event_responses WHERE wedding_event_id='$eventId'::uuid; DELETE FROM public.weddings WHERE id IN ('$publicWedding'::uuid,'$deleteWedding'::uuid);"
     if ($userId) { $cleanupSql += " DELETE FROM auth.users WHERE id='$userId'::uuid;" }

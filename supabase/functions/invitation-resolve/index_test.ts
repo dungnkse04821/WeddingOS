@@ -1,4 +1,4 @@
-import { isValidRawToken, parseAllowedOrigins, RESOLVE_BODY_LIMIT_BYTES, resolveInvitation, securityHeaders, sha256Hex } from './index.ts';
+import { classDLimiterKey, isValidRawToken, networkSignal, parseAllowedOrigins, RESOLVE_BODY_LIMIT_BYTES, resolveInvitation, securityHeaders, sha256Hex } from './index.ts';
 
 const validToken = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk012345';
 
@@ -65,6 +65,42 @@ Deno.test('limiter digest does not contain raw network signal', async () => {
   }
   if (digest.includes(rawSignal)) {
     throw new Error('Digest must not contain raw network signal.');
+  }
+});
+
+Deno.test('Class-D limiter keys combine trusted-preferred network and non-reversible token dimensions', async () => {
+  const token = validToken;
+  const cloudflareRequest = new Request('http://local', {
+    headers: {
+      'cf-connecting-ip': '198.51.100.17',
+      'x-forwarded-for': '203.0.113.18, 10.0.0.1',
+      'x-real-ip': '192.0.2.9',
+    },
+  });
+  if (networkSignal(cloudflareRequest) !== '198.51.100.17') {
+    throw new Error('CF-Connecting-IP must take precedence when supplied by the provider.');
+  }
+  const directRequest = new Request('http://local', {
+    headers: { 'x-forwarded-for': '203.0.113.18', 'x-real-ip': '192.0.2.9' },
+  });
+  if (networkSignal(directRequest) !== 'unverified-network') {
+    throw new Error('Untrusted forwarded headers must not become a limiter identity.');
+  }
+  const key = await classDLimiterKey('D-INV-001', token, cloudflareRequest);
+  const sameNetworkOtherToken = await classDLimiterKey(
+    'D-INV-001',
+    'BCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk0123456',
+    cloudflareRequest,
+  );
+  const rsvpKey = await classDLimiterKey('D-RSV-001', token, cloudflareRequest);
+  if (!/^D-INV-001:n:[a-f0-9]{32}:t:[a-f0-9]{32}$/.test(key)) {
+    throw new Error('Unexpected bounded Class-D limiter key format.');
+  }
+  if (key.includes(token) || key.includes('198.51.100.17')) {
+    throw new Error('Limiter key leaked token or network source.');
+  }
+  if (key === sameNetworkOtherToken || key === rsvpKey) {
+    throw new Error('Token and route dimensions must both partition limiter state.');
   }
 });
 

@@ -1,4 +1,4 @@
-import { isValidRawToken, networkSignal, parseAllowedOrigins, publicError, securityHeaders, sha256Hex } from '../invitation-resolve/index.ts';
+import { classDLimiterKey, isValidRawToken, parseAllowedOrigins, publicError, securityHeaders } from '../invitation-resolve/index.ts';
 import { BoundedBodyError, boundedInteger, createCorrelationId, fetchWithDeadline, readBoundedJson, readBoundedResponseJson } from '../_shared/edge_safety.ts';
 import { logEdgeCompletion } from '../_shared/operational_log.ts';
 
@@ -144,7 +144,7 @@ async function submitRsvpCore(
   }
 
   try {
-    const networkHash = await sha256Hex(`D-RSV-001:${networkSignal(request)}`);
+    const limiterKey = await classDLimiterKey('D-RSV-001', body.raw_token, request);
     const rpcResponse = await fetchWithDeadline(
       fetch,
       `${supabaseUrl}/rest/v1/rpc/submit_public_rsvp`,
@@ -161,7 +161,7 @@ async function submitRsvpCore(
           p_raw_token: body.raw_token,
           p_responses: body.responses,
           p_optional_fields: body.optional_fields ?? {},
-          p_limiter_key: `D-RSV-001:ip:${networkHash}`,
+          p_limiter_key: limiterKey,
           p_rate_limit_threshold: boundedInteger(
             Deno.env.get('CLASS_D_RSVP_RATE_LIMIT'),
             10,

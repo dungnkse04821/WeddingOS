@@ -11,6 +11,7 @@ Status:
 - M8.2B Flutter Auth/Session Reliability: **COMPLETE**
 - M8.2C Guest Web / Observability Reliability: **COMPLETE**
 - M8.2: **COMPLETE**
+- M8.3 Security Matrix & Provider Evidence: **COMPLETE**
 
 Date: 2026-08-26
 
@@ -642,3 +643,114 @@ intentionally disabled optional services while still checking its exit code and
 every provider post-condition. The harness requires PowerShell 7 because it uses
 `SkipHttpErrorCheck`; no fixture, credential, token, provider response, or build
 output is retained.
+
+## M8.3 Security Matrix and Provider Evidence
+
+This slice closes `M8-P1-009`, materially resolves `M8-P2-001`, and closes
+`M8-P2-006`. M8 overall remains **IN PROGRESS** for later CI/staging, NFR,
+backup/recovery, and release-gate work only.
+
+### Catalog and Callable-Surface Sweep
+
+Batch 18 corrects the one catalog defect found by the live sweep: the four
+legacy `SECURITY DEFINER` helpers `security.can_mutate_wedding`,
+`security.can_owner_delete_wedding`, `security.can_owner_mutate_wedding`, and
+`security.is_wedding_cover_path` were owned by `postgres`; they now use the
+established `trusted_function_owner`. Their empty search paths, existing grants,
+and behavior remain unchanged.
+
+`database_verification_batch_18.test.sql` is an invariant-based drift check.
+It asserts the expected 17 public business-table names, RLS on every one, no
+anon direct business-table grant, schema usage boundaries, trusted owner plus
+empty `search_path` on every scoped SECURITY DEFINER function, authenticated-only
+`api_v1`, service-only `edge_api`, hidden `internal`, and no anon/service-role
+direct execution of `security` helpers.
+
+The reset catalog inventory contains 17 public business tables, 23 `api_v1`
+functions, 4 service-only `edge_api` functions, 12 hidden `internal` functions,
+and 7 `security` helpers. All 46 scoped functions have their approved grant
+boundary. The intentional legacy internal overloads are hidden and do not create
+client-callable drift; no new API or public route was added.
+
+### Real HTTP and Class-D Evidence
+
+The disposable real PostgREST fixtures authenticate OWNER, COLLABORATOR,
+unrelated OWNER, and anonymous identities. They prove ACTIVE same-Wedding read,
+ARCHIVED read-only access, DELETING OWNER recovery metadata only, DELETING graph
+denial, DELETING collaborator denial, cross-Wedding zero-row filtering, and
+anonymous HTTP 401. Representative planning, Guests, Finance, invitations,
+targeting, map-link mutation, and public bridge cases all retain their approved
+role/lifecycle behavior. Direct cross-Wedding update returns no changed rows;
+anonymous update is denied.
+
+The real Class-D fixture proves resolve and RSVP HTTP 200 with a valid credential;
+an invalid credential carrying an arbitrary `wedding_id` field and a revoked
+credential both return generic HTTP 404. The body field does not supply tenant
+authority. No Class-D flow needs a direct anonymous database grant.
+
+### Rate-Limit Provenance and Dimensions
+
+`networkSignal` now uses only `CF-Connecting-IP` for an IP partition. It no
+longer trusts `X-Forwarded-For` or `X-Real-IP`: local Supabase accepts those as
+client-provided headers, so they cannot be authority. Without a provider-supplied
+Cloudflare header it uses the fixed `unverified-network` partition.
+
+Both Class-D routes now combine that route-scoped network partition with a
+route-scoped SHA-256 token partition. The persisted limiter key stores only 32
+hexadecimal characters from each digest, never the raw IP or credential, and is
+well below the existing 128-character contract. This preserves shared-NAT
+fairness while making distributed requests across arbitrary network partitions
+harder to abuse. Unit tests prove CF precedence, forwarded-header rejection,
+route separation, token separation, bounded format, and absence of raw values.
+Existing environment count bounds remain 1-300 for resolve and 1-100 for RSVP;
+the limiter window remains database-owned and has no unbounded Edge environment
+control.
+
+Production Cloudflare deployment must preserve provider ownership of
+`CF-Connecting-IP`; local testing deliberately treats all non-CF forwarded
+headers as untrusted. That deployment routing proof remains an M8 staging/release
+evidence item, not a remaining application security defect.
+
+### Real Storage and Secret Hygiene
+
+The real local provider harness uploads 101 disposable objects beneath one
+Wedding pagination prefix. Storage returned exactly 100 entries at offset 0 and
+1 entry at offset 100. The canonical delete orchestration removed the entire
+prefix, made a fresh list empty, physically deleted the Wedding, and preserved
+its Auth user. This closes `M8-P2-006` with provider—not mock—pagination evidence.
+
+The same real fixture re-proves ACTIVE organizer cover upload HTTP 200,
+ARCHIVED/DELETING upload denial HTTP 400, DELETING read denial HTTP 400, and
+no effective organizer DELETE authority: the provider returned HTTP 200 but the
+object remained readable. Server cleanup continues to operate independently.
+
+`m8_3_tracked_secret_scan.ps1` scans tracked files only and reports categories
+and paths without echoing values. It checks tracked environment files, private
+keys, `sb_secret_` values, bearer/JWT artifacts, and signed-URL captures. The
+final run passed all five content categories with zero tracked environment files.
+
+### Verification Evidence
+
+- clean reset: PASS through `00000000000018_batch_18.sql`;
+- full pgTAP: 16 files / 538 assertions / 0 failures; Batch 18 adds 9 catalog
+  and callable-surface assertions;
+- Deno 2.9.5: 5 files / 33 tests / 0 failures;
+- real PostgREST lifecycle/storage matrix: PASS; ACTIVE and ARCHIVED approved
+  reads HTTP 200, DELETING OWNER graph rows 0, DELETING COLLABORATOR rows 0,
+  cross-Wedding rows 0, anon HTTP 401;
+- real PostgREST invitation/map matrix: PASS; OWNER HTTPS update HTTP 204,
+  unsafe schemes HTTP 400, collaborator existing policy HTTP 204, cross-Wedding
+  rows changed 0, anon HTTP 401, public bridge HTTP 200;
+- real Class-D/Storage provider matrix: resolve HTTP 200, RSVP HTTP 200,
+  invalid and revoked credential HTTP 404, delete HTTP 200, provider pages
+  100 plus 1, fresh target-prefix entries 0, deleted Wedding rows 0, and
+  preserved Auth users 1;
+- Flutter lifecycle/session smoke: 2 files / 17 tests / 0 failures;
+- Guest Web: 4 files / 15 tests / 0 failures, ESLint PASS, production build
+  PASS in 820 ms with 203.23 kB JavaScript / 64.36 kB gzip.
+
+Verification-only fixes corrected Batch 18's PostgreSQL catalog comparison to
+compare `name` values deterministically, made disposable provider fixtures
+remove all generated paths on failure, and require PowerShell 7 for the
+existing `SkipHttpErrorCheck` harness. No secrets, JWTs, fixtures, signed URLs,
+logs, or generated output are retained.
