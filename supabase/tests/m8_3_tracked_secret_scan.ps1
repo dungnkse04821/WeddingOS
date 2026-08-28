@@ -19,7 +19,7 @@ $patterns = @{
   'service secret prefix' = 'sb_secret_[A-Za-z0-9_-]{20,}'
   'bearer JWT artifact' = 'Bearer[[:space:]]+eyJ[A-Za-z0-9_-]{20,}\.'
   'JWT-shaped tracked artifact' = 'eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}'
-  'signed URL capture' = 'X-Amz-Signature=|[?&]token=[A-Za-z0-9_-]{24,}'
+  'signed URL capture' = ('X-Amz-' + 'Signature=|[?&]token=[A-Za-z0-9_-]{24,}')
 }
 
 foreach ($entry in $patterns.GetEnumerator()) {

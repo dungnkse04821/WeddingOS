@@ -113,14 +113,18 @@ INSERT INTO public.invitation_credentials(invitation_id,token_hash)
   Assert-True (@($pageTwo.Json).Count -ge 1) "Storage pagination second page returned no entries"
 
   $guestHeaders = @{ apikey = $anonKey; Origin = 'http://localhost:5173'; 'x-forwarded-for' = '198.51.100.82' }
+  $resolveTimer = [System.Diagnostics.Stopwatch]::StartNew()
   $resolve = Invoke-SafeRequest -Method POST -Uri "$apiUrl/functions/v1/invitation-resolve" -Headers $guestHeaders -Body (@{ raw_token = $rawToken } | ConvertTo-Json -Compress)
+  $resolveTimer.Stop()
   Assert-True ($resolve.Status -eq 200 -and [bool]$resolve.Json.ok) "invitation resolve returned HTTP $($resolve.Status)"
 
+  $rsvpTimer = [System.Diagnostics.Stopwatch]::StartNew()
   $rsvp = Invoke-SafeRequest -Method POST -Uri "$apiUrl/functions/v1/invitation-rsvp" -Headers $guestHeaders -Body (@{
     raw_token = $rawToken
     responses = @(@{ event_id = $eventId; response_status = 'ATTENDING'; attending_count = 2 })
     optional_fields = @{ guest_message = 'M8.2A provider smoke' }
   } | ConvertTo-Json -Depth 5 -Compress)
+  $rsvpTimer.Stop()
   Assert-True ($rsvp.Status -eq 200 -and [bool]$rsvp.Json.ok) "RSVP returned HTTP $($rsvp.Status)"
 
   $invalidResolve = Invoke-SafeRequest -Method POST -Uri "$apiUrl/functions/v1/invitation-resolve" -Headers $guestHeaders -Body (@{
@@ -133,10 +137,12 @@ INSERT INTO public.invitation_credentials(invitation_id,token_hash)
   $revokedResolve = Invoke-SafeRequest -Method POST -Uri "$apiUrl/functions/v1/invitation-resolve" -Headers $guestHeaders -Body (@{ raw_token = $rawToken } | ConvertTo-Json -Compress)
   Assert-True ($revokedResolve.Status -eq 404) "revoked credential returned HTTP $($revokedResolve.Status)"
 
+  $deleteTimer = [System.Diagnostics.Stopwatch]::StartNew()
   $delete = Invoke-SafeRequest -Method POST -Uri "$apiUrl/functions/v1/wedding-delete" -Headers @{
     apikey = $anonKey
     Authorization = "Bearer $accessToken"
   } -Body (@{ wedding_id = $deleteWedding } | ConvertTo-Json -Compress)
+  $deleteTimer.Stop()
   Assert-True ($delete.Status -eq 200 -and [string]$delete.Json.status -eq 'DELETED') "wedding delete returned HTTP $($delete.Status)"
 
   $storageList = Invoke-SafeRequest -Method POST -Uri "$apiUrl/storage/v1/object/list/wedding_media" -Headers @{
@@ -153,10 +159,13 @@ INSERT INTO public.invitation_credentials(invitation_id,token_hash)
   [pscustomobject]@{
     Status = 'PASS'
     InvitationResolve = $resolve.Status
+    InvitationResolveMilliseconds = $resolveTimer.ElapsedMilliseconds
     RsvpSubmit = $rsvp.Status
+    RsvpSubmitMilliseconds = $rsvpTimer.ElapsedMilliseconds
     InvalidCredential = $invalidResolve.Status
     RevokedCredential = $revokedResolve.Status
     WeddingDelete = $delete.Status
+    WeddingDeleteMilliseconds = $deleteTimer.ElapsedMilliseconds
     DeleteStorageEntries = @($storageList.Json).Count
     ProviderPaginationPageOne = @($pageOne.Json).Count
     ProviderPaginationPageTwo = @($pageTwo.Json).Count
