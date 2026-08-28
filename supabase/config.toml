@@ -4,6 +4,19 @@
 # working directory name when running `supabase init`.
 project_id = "WeddingOS"
 
+# Public Class-D functions use invitation credentials as their application
+# capability, so the Edge gateway must allow their handlers to run.
+[functions.invitation-resolve]
+verify_jwt = false
+
+[functions.invitation-rsvp]
+verify_jwt = false
+
+# Organizer lifecycle deletion remains protected by the gateway and verifies the
+# organizer bearer token again inside the handler.
+[functions.wedding-delete]
+verify_jwt = true
+
 [api]
 enabled = true
 # Port to use for the API URL.

@@ -31,6 +31,8 @@ jobs:
       - name: Scan tracked files for secrets
         shell: pwsh
         run: ./supabase/tests/m8_3_tracked_secret_scan.ps1
+      - name: Verify Edge gateway JWT modes
+        run: python3 supabase/tests/m8_5b_function_config_verification.py
 
   edge:
     runs-on: ubuntu-latest

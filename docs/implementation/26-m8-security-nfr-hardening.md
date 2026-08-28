@@ -834,3 +834,16 @@ correct `../../_shared/invitation_proxy` path. Vite client build had already
 passed. This fixes the source-controlled module-resolution defect only; proxy
 routes, fixed upstream authority, header forwarding, and external staging gates
 are unchanged. A redeploy is still required before any staging check can pass.
+
+The Pages redeploy then passed its Guest Web, CSP/header, approved-origin CORS,
+invalid-origin fail-closed, and Cloudflare-to-Supabase routing checks. Real
+Class-D POSTs were nevertheless rejected by the Supabase gateway with HTTP 401
+`UNAUTHORIZED_NO_AUTH_HEADER` before WeddingOS code ran. The source-controlled
+root cause was missing function JWT configuration. `supabase/config.toml` now
+sets `verify_jwt = false` only for `invitation-resolve` and `invitation-rsvp`;
+it explicitly retains `verify_jwt = true` for organizer-authenticated
+`wedding-delete`. A Python standard-library TOML parser check guards the three
+modes in CI. The Supabase CLI applies function configuration during
+`functions deploy`; `--no-verify-jwt` is an explicit override and must be used
+only for the two public functions if an operator chooses flags. Cloudflare and
+Supabase redeploy/retest remain required before Class-D staging E2E can pass.

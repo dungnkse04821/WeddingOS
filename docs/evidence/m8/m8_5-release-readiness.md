@@ -78,3 +78,24 @@ discovery, then failed Pages Functions compilation because the entrypoints used
 `../../_shared/invitation_proxy`. This is a source-controlled import-resolution
 fix only. Deployment CSP, routing, CORS, and forwarding-header provenance
 remain **IN PROGRESS** until Cloudflare redeploys and verifies the pushed fix.
+
+## Class-D gateway JWT correction
+
+Cloudflare Pages now deploys successfully after the import correction. Guest
+Web, deployed CSP/security headers, approved-origin CORS, invalid-origin
+fail-closed behavior, and proxy routing to Supabase Edge are verified by the
+staging attempt. The two Class-D POSTs instead received gateway HTTP 401
+`UNAUTHORIZED_NO_AUTH_HEADER`, with `x-served-by: supabase-edge-runtime`, before
+WeddingOS handlers ran.
+
+`supabase/config.toml` had no function-specific configuration. It now sets
+`[functions.invitation-resolve]` and `[functions.invitation-rsvp]` to
+`verify_jwt = false`, matching their invitation-credential capability model.
+`[functions.wedding-delete] verify_jwt = true` explicitly preserves organizer
+gateway authentication. `m8_5b_function_config_verification.py` parses TOML
+with Python's standard library and asserts these three modes; CI runs it.
+
+Supabase `functions deploy` honors per-function `config.toml` configuration;
+`--no-verify-jwt` overrides it and must never be applied to `wedding-delete`.
+The public functions must be redeployed and their real staging POSTs retried.
+Class-D deployed E2E remains **IN PROGRESS**, not PASS.

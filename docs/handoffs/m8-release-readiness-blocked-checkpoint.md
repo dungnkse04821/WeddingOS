@@ -27,6 +27,13 @@ This is a temporary handoff, not the authoritative final M8 checkpoint.
   `functions/_shared/invitation_proxy.ts`. Local entrypoint tests pass, but
   Cloudflare must redeploy the corresponding commit before compilation can be
   treated as verified.
+- Staging then reached the Supabase Edge gateway, which rejected Class-D POSTs
+  before handler execution because function JWT mode was not source controlled.
+  `supabase/config.toml` now disables gateway JWT verification only for
+  `invitation-resolve` and `invitation-rsvp`, and explicitly enables it for
+  `wedding-delete`; `m8_5b_function_config_verification.py` parses and checks
+  these settings. Redeploy both public functions and retry real POSTs before
+  treating Class-D staging E2E as verified.
 - `docs/release/mvp-release-runbook.md` documents deployment, public config,
   release/rollback, recovery expectations, and synthetic-only staging smoke.
 - `docs/evidence/m8/m8_5-release-readiness.md` records exact local results and
