@@ -7,14 +7,22 @@ class AppConfigException implements Exception {
 }
 
 class AppConfig {
-  const AppConfig({required this.supabaseUrl, required this.supabaseAnonKey});
+  const AppConfig({
+    required this.supabaseUrl,
+    required this.supabaseAnonKey,
+    this.googleWebClientId,
+  });
 
   final String supabaseUrl;
   final String supabaseAnonKey;
+  final String? googleWebClientId;
 
   factory AppConfig.fromEnvironment({
     String supabaseUrl = const String.fromEnvironment('SUPABASE_URL'),
     String supabaseAnonKey = const String.fromEnvironment('SUPABASE_ANON_KEY'),
+    String googleWebClientId = const String.fromEnvironment(
+      'GOOGLE_WEB_CLIENT_ID',
+    ),
   }) {
     final url = supabaseUrl.trim();
     final key = supabaseAnonKey.trim();
@@ -32,7 +40,21 @@ class AppConfig {
       throw const AppConfigException('Thiếu hoặc sai SUPABASE_ANON_KEY.');
     }
 
-    return AppConfig(supabaseUrl: url, supabaseAnonKey: key);
+    return AppConfig(
+      supabaseUrl: url,
+      supabaseAnonKey: key,
+      googleWebClientId: googleWebClientId.trim().isEmpty
+          ? null
+          : googleWebClientId.trim(),
+    );
+  }
+
+  String requireGoogleWebClientId() {
+    final clientId = googleWebClientId?.trim();
+    if (clientId == null || clientId.isEmpty) {
+      throw const AppConfigException('Thiếu cấu hình Google Sign-In.');
+    }
+    return clientId;
   }
 
   static bool _isServiceRoleKey(String key) {

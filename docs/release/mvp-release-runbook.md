@@ -35,7 +35,10 @@ requires production credentials.
 Flutter is built with public, publishable values only:
 
 ```powershell
-flutter build appbundle --dart-define=SUPABASE_URL=https://<staging-project>.supabase.co --dart-define=SUPABASE_ANON_KEY=<publishable-anon-key>
+flutter build appbundle `
+  --dart-define=SUPABASE_URL=https://<staging-project>.supabase.co `
+  --dart-define=SUPABASE_ANON_KEY=<publishable-anon-key> `
+  --dart-define=GOOGLE_WEB_CLIENT_ID=<google-web-client-id>
 ```
 
 Guest Web is deployed from the `guest_web` directory. The Pages Functions in
@@ -71,7 +74,7 @@ staging deployment must be checked with `curl -I https://<staging-guest-host>/`.
    origin. Set service credentials only in Edge provider configuration.
 4. Deploy Guest Web from `guest_web`, with output `dist`, Pages Functions
    enabled, and the two public runtime variables above.
-5. Build the organizer app with the two Flutter defines and the staging Android
+5. Build the organizer app with the three Flutter defines and the staging Android
    signing/OAuth configuration.
 6. Use synthetic fixtures only: organizer, Wedding, Event, Guest/Party,
    invitation credential, basic Finance row, and optional cover.
@@ -89,14 +92,17 @@ the matching Google provider in the isolated Supabase project. Release signing
 must replace the current debug release signing configuration. Do not place an
 OAuth client secret, keystore, or fingerprint in this repository.
 
-The implemented Android flow is native Google authentication followed by
+The implemented Android flow initializes `google_sign_in` with the public Web
+OAuth client ID as `serverClientId`, then exchanges its native ID token with
 Supabase `signInWithIdToken`; it does not use an Android browser callback/deep
-link. After installing a build with only `SUPABASE_URL` and
-`SUPABASE_ANON_KEY`, verify on a Google Play-services-capable device: signed-out
-launch, Google login, Supabase session, authenticated Wedding-selector read,
-background/resume revalidation, sign-out, and loss of authenticated access.
-Record only device/build identity and pass/fail outcomes. Never capture OAuth
-secrets, access/refresh/ID tokens, raw callback data, or account identifiers.
+link. `google_sign_in` 7.2.0 exposes only the ID token from this authentication
+flow, so the optional Supabase access-token parameter is intentionally omitted.
+After installing a build with all three public defines, verify on a Google
+Play-services-capable device: signed-out launch, Google login, Supabase session,
+authenticated Wedding-selector read, background/resume revalidation, sign-out,
+and loss of authenticated access. Record only device/build identity and
+pass/fail outcomes. Never capture OAuth secrets, access/refresh/ID tokens, raw
+callback data, or account identifiers.
 
 ## Rollback and recovery
 

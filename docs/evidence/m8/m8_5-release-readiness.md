@@ -71,12 +71,16 @@ in progress and must not be committed as complete until the evidence exists.
 
 ## Google Sign-In staging E2E
 
-**GOOGLE SIGN-IN STAGING E2E = EXTERNALLY BLOCKED.** Source review confirms
-that Android/iOS use the native `google_sign_in` flow: Google authentication
-returns an ID token that the Organizer exchanges with Supabase through
-`signInWithIdToken`. The Flutter web build instead uses Supabase OAuth with
-PKCE. Android has application ID `com.vibecode.weddingos.organizer_app` and no
-browser OAuth callback/deep-link authority is used by the native flow.
+**GOOGLE SIGN-IN STAGING E2E = EXTERNALLY BLOCKED.** The staging Google Android
+and Web OAuth clients, Supabase Google provider, and callback have been
+operator-configured. Source now requires the public
+`GOOGLE_WEB_CLIENT_ID` build define on native platforms and initializes
+`google_sign_in` 7.2.0 with it as `serverClientId` before authentication. That
+package exposes an ID token for this flow, which is exchanged with Supabase
+through `signInWithIdToken`; its optional access-token argument is intentionally
+omitted. The Flutter web build remains Supabase OAuth with PKCE. Android has
+application ID `com.vibecode.weddingos.organizer_app` and no browser OAuth
+callback/deep-link authority is used by the native flow.
 
 The app initializes Supabase using build-time `SUPABASE_URL` and publishable
 `SUPABASE_ANON_KEY`, observes `onAuthStateChange`, and uses the verified
@@ -86,33 +90,30 @@ state and enter the bounded `AUTH_LOST` path; sign-out performs the same local
 state clearing. The Google UI maps cancellation/provider/network failures to a
 bounded Vietnamese retry message and does not display OAuth/provider details.
 
-The harness has no Android SDK, emulator, or attached device; no staging Google
-OAuth client/provider dashboard evidence; and no operator-owned Google account
-session. Therefore it cannot honestly prove native Google authentication,
+The harness has no Android SDK, emulator, or attached device and no
+operator-owned Google account session. Therefore it cannot honestly prove native Google authentication,
 Supabase session issuance/refresh, authenticated staging API access, or
 post-sign-out denial. No OAuth secret, token, callback payload, or account
 identifier was read or recorded.
 
 Operator steps to close this gate:
 
-1. In the isolated staging Google project, configure the Android OAuth client
-   for the application ID above and the actual staging signing SHA-1/SHA-256
-   fingerprints; keep any client secret outside source control.
-2. Enable the matching Google provider in the staging Supabase Auth project and
-   configure its permitted callback/domain settings without changing production.
-3. Build/install the Organizer staging artifact using only the two public
-   Flutter defines, on a Google Play-services-capable Android device/emulator.
-4. Starting signed out, complete Google sign-in, confirm a Supabase session,
+1. Build/install the Organizer staging artifact using the three public Flutter
+   defines, including `GOOGLE_WEB_CLIENT_ID=<google-web-client-id>`, on a Google
+   Play-services-capable Android device/emulator. Keep any OAuth client secret
+   outside source control.
+2. Starting signed out, complete Google sign-in, confirm a Supabase session,
    and perform an authenticated low-impact Organizer read such as the Wedding
    selector query. Background/resume to exercise revalidation or refresh.
-5. Sign out, verify authenticated access is unavailable, and record only
+3. Sign out, verify authenticated access is unavailable, and record only
    platform/build identity, pass/fail outcomes, and redacted correlation data.
 
-Local evidence remains green: `flutter test` passed 59 tests; `flutter analyze`
+Local evidence remains green: `flutter test` passed 65 tests; `flutter analyze`
 reported 0 errors, 0 warnings, and 212 existing INFO diagnostics. Existing
-tests cover public-config rejection of service-role material, bounded error
-mapping, session recovery, and wedding-delete `AUTH_LOST` handling; native
-Google account handoff requires the real staging device/provider proof above.
+tests cover public-config rejection of service-role material, native client-ID
+failure-closed behavior, idempotent initialization, ID-token handoff, bounded
+error mapping, session recovery, and wedding-delete `AUTH_LOST` handling;
+native Google account handoff requires the real staging device proof above.
 
 ## Cloudflare Pages import correction
 

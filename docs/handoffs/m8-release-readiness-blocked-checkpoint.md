@@ -114,23 +114,24 @@ npm audit --omit=dev --audit-level=high
 
 ## Google Sign-In staging gate
 
-**EXTERNALLY BLOCKED.** Native Android/iOS Organizer sign-in is Google
-`authenticate()` followed by Supabase `signInWithIdToken`; web uses Supabase
-OAuth PKCE. The Android application ID is
-`com.vibecode.weddingos.organizer_app`; no native browser callback/deep-link is
-configured. Supabase `user.id`, not Google profile data, remains the security
-identity. Auth-state changes and sign-out clear selected Wedding state and use
-bounded `AUTH_LOST` recovery.
+**EXTERNALLY BLOCKED.** Staging Google Android/Web OAuth clients, the Supabase
+provider, and callback have been manually configured. Native Android/iOS
+Organizer sign-in initializes `google_sign_in` 7.2.0 with the public
+`GOOGLE_WEB_CLIENT_ID` build define as `serverClientId`, then exchanges its ID
+token with Supabase `signInWithIdToken`; web uses Supabase OAuth PKCE. No access
+token is exposed by this native package authentication result. The Android
+application ID is `com.vibecode.weddingos.organizer_app`; no native browser
+callback/deep-link is configured. Supabase `user.id`, not Google profile data,
+remains the security identity. Auth-state changes and sign-out clear selected
+Wedding state and use bounded `AUTH_LOST` recovery.
 
-This host lacks an Android SDK/device/emulator, staging Google OAuth client and
-Supabase provider dashboard evidence, and an operator-owned Google account
-session. To resume, configure the staging Android OAuth client with the actual
-staging SHA-1/SHA-256 signing fingerprints, enable the matching staging
-Supabase Google provider/callback configuration, install a public-configured
-staging build on a Google Play-services-capable device, then prove sign-in,
+This host lacks an Android SDK/device/emulator and an operator-owned Google
+account session. To resume, install a staging build with the three public
+defines, including `GOOGLE_WEB_CLIENT_ID=<google-web-client-id>`, on a Google
+Play-services-capable device, then prove sign-in,
 Supabase session, an authenticated Wedding-selector read, resume/revalidation,
 and sign-out denial. Record no OAuth secrets, tokens, callback payloads, or
-account identifiers. Local Flutter evidence: 59 passing tests; analyzer 0
+account identifiers. Local Flutter evidence: 65 passing tests; analyzer 0
 errors / 0 warnings / 212 existing INFO diagnostics.
 
 `npx supabase projects list` was attempted and failed with no access token.

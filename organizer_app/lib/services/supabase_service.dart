@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -14,6 +13,7 @@ import '../models/invitation_model.dart';
 import '../models/guest_model.dart';
 import '../models/guest_import_model.dart';
 import 'session_recovery.dart';
+import 'native_google_auth.dart';
 
 class SupabaseService {
   static final SupabaseService instance = SupabaseService._internal();
@@ -68,8 +68,7 @@ class SupabaseService {
     }
   }
 
-  /// Performs OAuth Google Sign-In and exchanges credentials for a Supabase session.
-  /// Follows the Native Google Sign-In -> signInWithIdToken contract (both tokens required).
+  /// Performs Google Sign-In and exchanges its native ID token for a Supabase session.
   Future<void> signInWithGoogle() async {
     if (kIsWeb) {
       // Web OAuth flow
@@ -81,19 +80,13 @@ class SupabaseService {
     }
 
     // Native Google Sign-In (iOS/Android)
-    final googleSignIn = GoogleSignIn.instance;
-    final googleUser = await googleSignIn.authenticate();
-
-    final googleAuth = googleUser.authentication;
-    final idToken = googleAuth.idToken;
-
-    if (idToken == null) {
-      throw Exception('Failed to obtain Google authentication ID token');
-    }
-
-    await client.auth.signInWithIdToken(
-      provider: OAuthProvider.google,
-      idToken: idToken,
+    await signInWithNativeGoogle(
+      config: Constants.publicConfig,
+      authenticator: NativeGoogleAuthenticator.instance,
+      exchangeIdToken: (idToken) => client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+      ),
     );
   }
 

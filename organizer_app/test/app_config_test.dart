@@ -66,5 +66,31 @@ void main() {
         isNotEmpty,
       );
     });
+
+    test('keeps Google Web client ID as public runtime configuration', () {
+      final config = AppConfig.fromEnvironment(
+        supabaseUrl: 'https://project.supabase.co',
+        supabaseAnonKey: 'sb_publishable_example_key_1234567890',
+        googleWebClientId: 'example.apps.googleusercontent.com',
+      );
+
+      expect(
+        config.requireGoogleWebClientId(),
+        'example.apps.googleusercontent.com',
+      );
+    });
+
+    test('fails closed when native Google client configuration is absent or blank', () {
+      final config = AppConfig.fromEnvironment(
+        supabaseUrl: 'https://project.supabase.co',
+        supabaseAnonKey: 'sb_publishable_example_key_1234567890',
+        googleWebClientId: '   ',
+      );
+
+      expect(
+        config.requireGoogleWebClientId,
+        throwsA(isA<AppConfigException>()),
+      );
+    });
   });
 }
