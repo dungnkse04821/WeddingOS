@@ -61,8 +61,12 @@ staging deployment must be checked with `curl -I https://<staging-guest-host>/`.
 ## Deployment order and smoke
 
 1. Run CI and confirm a clean, reviewed commit.
-2. Apply the approved migrations to the isolated target with the operator's
-   Supabase deployment workflow; deploy the three Edge functions.
+2. Configure the PostgREST exposed schemas as `public`, `api_v1`, and
+   `edge_api` only; do not expose `internal` or `security`. Apply the approved
+   migrations to the isolated target with the operator's Supabase deployment
+   workflow; deploy the three Edge functions. Batch 19 is required for direct
+   organizer Guest insert/update: it grants only the documented client columns
+   and retains normalization/timestamp protection.
 3. Configure Edge `GUEST_WEB_ALLOWED_ORIGINS` to the exact staging Pages
    origin. Set service credentials only in Edge provider configuration.
 4. Deploy Guest Web from `guest_web`, with output `dist`, Pages Functions

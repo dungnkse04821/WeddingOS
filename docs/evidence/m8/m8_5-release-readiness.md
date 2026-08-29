@@ -124,3 +124,39 @@ values through the process environment only, run the helper, preserve the
 non-sensitive returned IDs for evidence, and optionally use `--cleanup` after
 inspection. Credential-backed resolve, RSVP, reload, invalid, and revoked
 staging results remain **BLOCKED**, not PASS.
+
+## Staging Guest INSERT privilege correction
+
+A later operator-run fixture reached `create_wedding`, Event insert, and
+InvitationParty insert, then received PostgREST HTTP 403 / SQLSTATE `42501` on
+the approved direct Guest insert. This was a PostgreSQL table-privilege failure,
+not RLS: Batch 04 granted table-level Guest `INSERT`/`UPDATE`, then its
+unqualified normalization-column `REVOKE INSERT, UPDATE` removed those base
+privileges. The partial synthetic state is intentionally retained for operator
+cleanup through canonical Wedding delete; it is not treated as atomic or E2E
+success.
+
+Batch 19 restores only column-level `INSERT`/`UPDATE` for the actual Flutter
+Guest payload: `wedding_id`, `invitation_party_id`, `primary_group_id`, `name`,
+`phone`, `email`, `side`, and `guest_source`. It preserves protected
+`normalized_phone`, `normalized_email`, `created_at`, and `updated_at`, no
+authenticated `DELETE`, and existing RLS/lifecycle gates. The Flutter serializer
+also now omits `id` from both create and update bodies; update identity remains
+the existing URL filter. This prevents its empty create placeholder from being
+sent as an invalid UUID.
+
+Staging PostgREST configuration must expose exactly `public`, `api_v1`, and
+`edge_api`, as reflected in `supabase/config.toml`; it must not expose
+`internal` or `security`. Batch 19 still requires operator deployment and a
+fresh fixture run. Credential-backed Guest E2E remains **BLOCKED**, not PASS.
+
+Local verification after Batch 19 is green: clean `supabase db reset` applied
+`00000000000019_batch_19.sql`; pgTAP passed 17 files / 552 assertions; the
+Flutter suite passed 59 tests with analyzer 0 errors / 0 warnings (212 existing
+INFO diagnostics); the fixture Node suite passed 2 tests; and Guest Web passed
+6 files / 19 tests, lint, and production build. The real local PostgREST matrix
+also passed the ACTIVE/ARCHIVED/DELETING, cross-Wedding, anonymous, and Storage
+boundaries. Its environment discovery now tolerates optional local services
+being stopped, but still requires returned API values; it is run with `pwsh`,
+not Windows PowerShell 5.1. The fixture now reports bounded PostgREST
+code/message context without emitting request credentials or tokens.

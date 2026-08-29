@@ -862,3 +862,38 @@ staging URL, publishable anon key, or operator-provided organizer session in
 the required environment variables. No credential, invitation token, or
 synthetic entity was created. M8 remains **IN PROGRESS** until an operator runs
 the documented helper and records real credential-backed Guest E2E evidence.
+
+### M8.5B Staging Guest INSERT Privilege Correction
+
+An operator-run staging fixture subsequently proved the direct Class-B Guest
+insert boundary was broken by table privilege, not RLS: creation reached Wedding,
+Event, and InvitationParty before PostgREST returned HTTP 403 / `42501` for
+`public.guests`. Batch 04's table-level grant was accidentally undone by its
+unqualified normalization-column revoke. Batch 19 replaces that accidental
+boundary with explicit authenticated `INSERT`/`UPDATE` columns matching
+`GuestModel.toJson`: `wedding_id`, `invitation_party_id`, `primary_group_id`,
+`name`, `phone`, `email`, `side`, and `guest_source`.
+
+`normalized_phone`, `normalized_email`, `created_at`, and `updated_at` remain
+database-controlled, and Guest `DELETE` remains unavailable to authenticated
+clients. Existing ACTIVE-only RLS remains the lifecycle authority. The Flutter
+serializer was corrected to omit `id`, including its empty create placeholder;
+the existing update URL filter retains identity. Batch 19 pgTAP covers explicit
+column grants, protected columns, normal insert/update plus trigger
+normalization, outsider denial, ARCHIVED/DELETING denial, and no DELETE grant.
+The fixture already uses a plain HTTPS `map_link`; no URL correction was needed.
+Partial staging data is operator-owned and must be cleaned through canonical
+Wedding delete after deployment. M8 remains **IN PROGRESS** and Guest E2E is
+not PASS until Batch 19 is deployed and the fixture completes.
+
+Verification is green: a clean local reset applied Batch 19 and the full pgTAP
+suite passed 17 files / 552 assertions. The focused client regression expanded
+the organizer suite to 59 passing tests; analyzer remained 0 errors / 0
+warnings with 212 existing INFO diagnostics. Fixture Node tests passed 2, and
+Guest Web passed 6 files / 19 tests, lint, and build. The real PostgREST
+lifecycle/Storage matrix also passed: ACTIVE and ARCHIVED approved reads,
+DELETING recovery-only denial, cross-Wedding and anonymous denial, lifecycle
+Storage write/read controls, and ineffective organizer Storage DELETE. Its
+local status parser now accepts optional stopped services only when API values
+are still present, and it must run under PowerShell 7 because its existing
+`SkipHttpErrorCheck` use is unsupported by Windows PowerShell 5.1.

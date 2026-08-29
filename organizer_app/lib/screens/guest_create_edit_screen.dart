@@ -98,7 +98,7 @@ class _GuestCreateEditScreenState extends State<GuestCreateEditScreen> {
       final guestToSave = GuestModel(
         id:
             widget.guest?.id ??
-            '', // empty for insert, will be ignored by toJson
+            '', // identity stays in the request filter, never in the write body
         weddingId: widget.weddingId,
         name: name,
         phone: phone,

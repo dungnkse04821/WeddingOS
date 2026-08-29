@@ -47,7 +47,14 @@ function Get-RowCount($Response) {
   return @($Response.Json).Count
 }
 
+$previousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
 $statusLines = @(& npx supabase status -o env 2>$null)
+$statusExitCode = $LASTEXITCODE
+$ErrorActionPreference = $previousErrorActionPreference
+if ($statusExitCode -ne 0 -and -not ($statusLines | Where-Object { $_ -match '^API_URL=' })) {
+  throw 'Local Supabase status did not return API connection values.'
+}
 $apiUrl = Get-LocalValue $statusLines 'API_URL'
 $anonKey = Get-LocalValue $statusLines 'ANON_KEY'
 $serviceKey = Get-LocalValue $statusLines 'SERVICE_ROLE_KEY'

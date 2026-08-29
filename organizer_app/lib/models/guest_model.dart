@@ -49,12 +49,12 @@ class GuestModel {
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
       'wedding_id': weddingId,
       'invitation_party_id': invitationPartyId,
       'primary_group_id': primaryGroupId,
       'name': name,
       'phone': phone,
+      'email': email,
       // client must NOT directly specify or edit normalized columns
       'side': side,
       'guest_source': guestSource,

@@ -43,6 +43,23 @@ This is a temporary handoff, not the authoritative final M8 checkpoint.
   Its Node tests pass, but execution requires process-only
   `STAGING_SUPABASE_URL`, `STAGING_SUPABASE_ANON_KEY`, and
   `STAGING_ORGANIZER_ACCESS_TOKEN`; none is available on this host.
+- An operator later ran the fixture and reached Wedding/Event/InvitationParty
+  creation, but direct Guest insert returned PostgREST HTTP 403 / `42501`.
+  This is a Batch 04 PostgreSQL privilege regression, not an RLS failure:
+  table-level Guest writes were removed by the attempted normalization-column
+  revoke. Batch 19 restores only the actual client payload columns
+  (`wedding_id`, party/group IDs, `name`, `phone`, `email`, `side`, and
+  `guest_source`), keeps normalized/timestamp fields protected, and retains no
+  authenticated DELETE. It also omits Flutter's empty create `id` from request
+  bodies. Deploy Batch 19, then rerun the fixture before calling Guest E2E
+  PASS; do not manually grant table-wide privilege or delete the partial data.
+- Batch 19 verification is green locally: reset applied the migration and
+  pgTAP passed 17 files / 552 assertions; Flutter passed 59 tests with 0
+  analyzer errors/warnings; the fixture Node suite passed 2; Guest Web passed
+  6 files / 19 tests plus lint/build; and the real local PostgREST lifecycle/
+  Storage matrix passed. Run that matrix using `pwsh`, not Windows PowerShell
+  5.1. M8 remains externally blocked until an operator deploys Batch 19 and
+  completes the real credential-backed staging fixture.
 - `docs/release/mvp-release-runbook.md` documents deployment, public config,
   release/rollback, recovery expectations, and synthetic-only staging smoke.
 - `docs/evidence/m8/m8_5-release-readiness.md` records exact local results and

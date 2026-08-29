@@ -55,7 +55,13 @@ async function requestJson(url, init, description) {
   const response = await fetch(url, init);
   const body = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(`${description} failed with HTTP ${response.status}.`);
+    const code = typeof body?.code === 'string' && /^[A-Z0-9_]{1,64}$/i.test(body.code)
+      ? ` ${body.code}`
+      : '';
+    const message = typeof body?.message === 'string'
+      ? `: ${body.message.replace(/\s+/g, ' ').slice(0, 160)}`
+      : '';
+    throw new Error(`${description} failed with HTTP ${response.status}${code}${message}`);
   }
   return body;
 }
