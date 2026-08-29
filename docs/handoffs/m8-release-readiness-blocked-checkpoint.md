@@ -34,6 +34,15 @@ This is a temporary handoff, not the authoritative final M8 checkpoint.
   `wedding-delete`; `m8_5b_function_config_verification.py` parses and checks
   these settings. Redeploy both public functions and retry real POSTs before
   treating Class-D staging E2E as verified.
+- Empty-body deployed POSTs now reach WeddingOS and return bounded HTTP 404
+  `INVITATION_UNAVAILABLE`, proving the public gateway/proxy route without
+  proving a real invitation. `scripts/m8_5b_staging_guest_fixture.mjs` creates
+  a synthetic fixture only through approved organizer and Class-B paths, holds
+  its raw credential in memory, verifies deployed resolve/RSVP/reload/invalid/
+  revoked behavior, and supports canonical delete cleanup with `--cleanup`.
+  Its Node tests pass, but execution requires process-only
+  `STAGING_SUPABASE_URL`, `STAGING_SUPABASE_ANON_KEY`, and
+  `STAGING_ORGANIZER_ACCESS_TOKEN`; none is available on this host.
 - `docs/release/mvp-release-runbook.md` documents deployment, public config,
   release/rollback, recovery expectations, and synthetic-only staging smoke.
 - `docs/evidence/m8/m8_5-release-readiness.md` records exact local results and

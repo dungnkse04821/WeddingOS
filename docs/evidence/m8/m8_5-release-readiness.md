@@ -99,3 +99,28 @@ Supabase `functions deploy` honors per-function `config.toml` configuration;
 `--no-verify-jwt` overrides it and must never be applied to `wedding-delete`.
 The public functions must be redeployed and their real staging POSTs retried.
 Class-D deployed E2E remains **IN PROGRESS**, not PASS.
+
+## Synthetic Guest E2E fixture preparation
+
+The deployed Class-D gateway/routing boundary is now verified: staging
+`POST /v1/invitation/resolve` and `POST /v1/invitation/rsvp` with `{}` each
+return bounded HTTP 404 `INVITATION_UNAVAILABLE`. This proves the Cloudflare
+proxy, public Supabase gateway mode, WeddingOS handler entry, and CORS boundary
+without claiming a credential-backed Guest E2E pass.
+
+`scripts/m8_5b_staging_guest_fixture.mjs` prepares the approved synthetic path:
+`api_v1.create_wedding`, Class-B Event/Party/Guest/Invitation/targeting writes,
+the `DRAFT -> READY` transition, and
+`api_v1.regenerate_invitation_credential`. It keeps the generated credential
+only in memory, executes deployed resolve/RSVP/reload/invalid/revoked checks,
+and optionally invokes the canonical organizer `wedding-delete` route with
+`--cleanup`. It creates only the synthetic labels `WeddingOS Staging Test`,
+`Lễ cưới thử nghiệm`, `Gia đình Test`, and `Khách Test` without phone/email.
+
+The credential-free Node tests pass. An execution attempt stopped before any
+network request because `STAGING_SUPABASE_URL`, `STAGING_SUPABASE_ANON_KEY`, and
+`STAGING_ORGANIZER_ACCESS_TOKEN` are absent. An operator must provide those
+values through the process environment only, run the helper, preserve the
+non-sensitive returned IDs for evidence, and optionally use `--cleanup` after
+inspection. Credential-backed resolve, RSVP, reload, invalid, and revoked
+staging results remain **BLOCKED**, not PASS.

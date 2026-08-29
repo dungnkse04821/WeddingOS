@@ -82,3 +82,4 @@ jobs:
       - run: npm test
       - run: npm run lint
       - run: npm run build
+      - run: node --test ../scripts/m8_5b_staging_guest_fixture.test.mjs

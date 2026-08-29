@@ -847,3 +847,18 @@ modes in CI. The Supabase CLI applies function configuration during
 `functions deploy`; `--no-verify-jwt` is an explicit override and must be used
 only for the two public functions if an operator chooses flags. Cloudflare and
 Supabase redeploy/retest remain required before Class-D staging E2E can pass.
+
+The redeployed public Class-D routes now return their bounded 404
+`INVITATION_UNAVAILABLE` envelope for `{}` through Cloudflare Pages, proving
+that routing, gateway mode, handler entry, and CORS are active. This is not a
+credential-backed Guest E2E result. `scripts/m8_5b_staging_guest_fixture.mjs`
+uses only the approved organizer/Invitation lifecycle to create a disposable
+synthetic Wedding fixture, hold the raw invitation credential in memory, run
+deployed resolve/RSVP/reload/invalid/revoked checks, and optionally use the
+canonical delete route for cleanup. Its two credential-free Node tests pass.
+
+Fixture execution is **BLOCKED** before network access: this host has no
+staging URL, publishable anon key, or operator-provided organizer session in
+the required environment variables. No credential, invitation token, or
+synthetic entity was created. M8 remains **IN PROGRESS** until an operator runs
+the documented helper and records real credential-backed Guest E2E evidence.
