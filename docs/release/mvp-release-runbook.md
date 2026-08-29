@@ -89,6 +89,15 @@ the matching Google provider in the isolated Supabase project. Release signing
 must replace the current debug release signing configuration. Do not place an
 OAuth client secret, keystore, or fingerprint in this repository.
 
+The implemented Android flow is native Google authentication followed by
+Supabase `signInWithIdToken`; it does not use an Android browser callback/deep
+link. After installing a build with only `SUPABASE_URL` and
+`SUPABASE_ANON_KEY`, verify on a Google Play-services-capable device: signed-out
+launch, Google login, Supabase session, authenticated Wedding-selector read,
+background/resume revalidation, sign-out, and loss of authenticated access.
+Record only device/build identity and pass/fail outcomes. Never capture OAuth
+secrets, access/refresh/ID tokens, raw callback data, or account identifiers.
+
 ## Rollback and recovery
 
 - Guest Web: retain the last known-good Pages deployment and use the provider's

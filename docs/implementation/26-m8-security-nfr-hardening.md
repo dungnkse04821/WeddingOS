@@ -945,3 +945,36 @@ Wedding ID. No direct SQL cleanup or manual state repair was used. This proves
 full Guest/Invitation/RSVP graph deletion and recovery retry semantics on real
 staging data while preserving normal `ON DELETE RESTRICT` business semantics.
 M8 stays **IN PROGRESS** for the remaining external release gates.
+
+### M8.5C Google Sign-In Staging E2E
+
+**GOOGLE SIGN-IN STAGING E2E = EXTERNALLY BLOCKED.** No application source
+change is appropriate without real provider evidence. The implemented native
+Android/iOS path is `GoogleSignIn.instance.authenticate()` followed by
+Supabase `signInWithIdToken`; Flutter web uses Supabase Google OAuth with PKCE.
+Android application ID is `com.vibecode.weddingos.organizer_app`. The native
+path does not use a browser callback/deep-link in the Android manifest.
+
+Supabase is initialized only from build-time public URL/anon-key configuration.
+`onAuthStateChange` drives session recovery; a missing, signed-out, or rejected
+session clears the selected Wedding and enters bounded `AUTH_LOST` handling.
+The security identity remains Supabase Auth `user.id`; Google profile data is
+presentation-only and client code has no actor override or service-role path.
+Google UI cancellation/provider failures are reduced to bounded Vietnamese
+retry copy, without OAuth response or token disclosure.
+
+The host has no Android SDK/device/emulator, no staging Google OAuth client or
+Supabase provider dashboard evidence, and no operator-owned Google account
+session. Required staging proof is therefore unavailable: configure the
+staging Android OAuth client for the application ID and staging signing
+fingerprints, enable the matching Supabase Google provider/callback settings,
+install a public-configured staging build on a Google Play-services-capable
+device, and verify sign-in, Supabase session, authenticated Wedding-selector
+read, background/resume revalidation, and sign-out denial. No OAuth secret,
+token, callback payload, or account identity is recorded.
+
+`flutter test` passed 59 tests. `flutter analyze` reported 0 errors, 0
+warnings, and 212 existing INFO diagnostics. Existing coverage verifies
+service-role rejection from public config, safe error mapping, session recovery,
+and `AUTH_LOST` for authenticated Edge failure. Native Google handoff remains a
+real-device/provider E2E requirement. M8 remains **IN PROGRESS**.

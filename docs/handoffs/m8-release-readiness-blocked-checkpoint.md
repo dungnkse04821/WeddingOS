@@ -112,6 +112,27 @@ npm audit --omit=dev --audit-level=high
 - a deployed rollback environment with a prior known-good release; and
 - final release-readiness/CI evidence.
 
+## Google Sign-In staging gate
+
+**EXTERNALLY BLOCKED.** Native Android/iOS Organizer sign-in is Google
+`authenticate()` followed by Supabase `signInWithIdToken`; web uses Supabase
+OAuth PKCE. The Android application ID is
+`com.vibecode.weddingos.organizer_app`; no native browser callback/deep-link is
+configured. Supabase `user.id`, not Google profile data, remains the security
+identity. Auth-state changes and sign-out clear selected Wedding state and use
+bounded `AUTH_LOST` recovery.
+
+This host lacks an Android SDK/device/emulator, staging Google OAuth client and
+Supabase provider dashboard evidence, and an operator-owned Google account
+session. To resume, configure the staging Android OAuth client with the actual
+staging SHA-1/SHA-256 signing fingerprints, enable the matching staging
+Supabase Google provider/callback configuration, install a public-configured
+staging build on a Google Play-services-capable device, then prove sign-in,
+Supabase session, an authenticated Wedding-selector read, resume/revalidation,
+and sign-out denial. Record no OAuth secrets, tokens, callback payloads, or
+account identifiers. Local Flutter evidence: 59 passing tests; analyzer 0
+errors / 0 warnings / 212 existing INFO diagnostics.
+
 `npx supabase projects list` was attempted and failed with no access token.
 No relevant deployment environment-variable names were present, and `wrangler`,
 `gh`, `adb`, and `emulator` were unavailable. No credential values were read or
