@@ -406,3 +406,55 @@ Deno.test('finalize timeout after an empty prefix remains retry safe', async () 
     globalThis.fetch = original;
   }
 });
+
+Deno.test('finalize bridge failure logs a bounded stage without provider details', async () => {
+  const original = globalThis.fetch;
+  const originalLog = console.log;
+  const logs: string[] = [];
+  Deno.env.set('SUPABASE_URL', 'http://supabase.local');
+  Deno.env.set('SUPABASE_SERVICE_ROLE_KEY', 'test-server-key');
+  console.log = (value: unknown) => logs.push(String(value));
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes('/auth/v1/user')) {
+      return new Response(JSON.stringify({ id: 'verified-owner' }));
+    }
+    if (url.includes('/rpc/begin_wedding_delete')) {
+      return new Response(
+        JSON.stringify({ status: 'DELETING', wedding_id: 'wedding-a' }),
+      );
+    }
+    if (url.includes('/object/list/')) return new Response(JSON.stringify([]));
+    if (url.includes('/rpc/finalize_wedding_delete')) {
+      return new Response('provider-internal sqlstate token-value', { status: 500 });
+    }
+    throw new Error(`unexpected ${url}`);
+  };
+  try {
+    const response = await beginWeddingDelete(
+      new Request('http://local', {
+        method: 'POST',
+        headers: { authorization: 'Bearer valid' },
+        body: JSON.stringify({ wedding_id: 'wedding-a' }),
+      }),
+    );
+    const responseText = await response.text();
+    const event = logs.map((line) => JSON.parse(line)).find((entry) =>
+      entry.event === 'edge_delete_stage_failed'
+    );
+    if (
+      response.status !== 503 ||
+      !responseText.includes('DELETE_RETRY_REQUIRED') ||
+      /provider-internal|sqlstate|token-value/i.test(responseText) ||
+      event?.stage !== 'finalize_bridge' ||
+      event?.status_category !== '5xx' ||
+      typeof event?.correlation_id !== 'string' ||
+      /provider-internal|sqlstate|token-value/i.test(JSON.stringify(event))
+    ) {
+      throw new Error('finalize failure diagnostics leaked or lost the bounded stage');
+    }
+  } finally {
+    globalThis.fetch = original;
+    console.log = originalLog;
+  }
+});

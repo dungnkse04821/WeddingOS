@@ -857,11 +857,12 @@ synthetic Wedding fixture, hold the raw invitation credential in memory, run
 deployed resolve/RSVP/reload/invalid/revoked checks, and optionally use the
 canonical delete route for cleanup. Its two credential-free Node tests pass.
 
-Fixture execution is **BLOCKED** before network access: this host has no
-staging URL, publishable anon key, or operator-provided organizer session in
-the required environment variables. No credential, invitation token, or
-synthetic entity was created. M8 remains **IN PROGRESS** until an operator runs
-the documented helper and records real credential-backed Guest E2E evidence.
+An operator subsequently supplied deployment-time access outside the repository
+and completed the credential-backed synthetic Guest E2E. Resolve, RSVP,
+current-state reload, invalid credential denial, regenerated credential denial,
+and revoked credential denial passed without retaining a credential in source,
+logs, or documentation. M8 remains **IN PROGRESS** for the distinct
+full-graph-delete recovery and other external release gates.
 
 ### M8.5B Staging Guest INSERT Privilege Correction
 
@@ -883,8 +884,10 @@ column grants, protected columns, normal insert/update plus trigger
 normalization, outsider denial, ARCHIVED/DELETING denial, and no DELETE grant.
 The fixture already uses a plain HTTPS `map_link`; no URL correction was needed.
 Partial staging data is operator-owned and must be cleaned through canonical
-Wedding delete after deployment. M8 remains **IN PROGRESS** and Guest E2E is
-not PASS until Batch 19 is deployed and the fixture completes.
+Wedding delete. Batch 19 was deployed and the fixture completed successfully;
+Guest E2E is **PASS**. M8 remains **IN PROGRESS** because the populated
+Wedding's canonical finalization exposed the distinct full-graph recovery issue
+recorded below.
 
 Verification is green: a clean local reset applied Batch 19 and the full pgTAP
 suite passed 17 files / 552 assertions. The focused client regression expanded
@@ -897,3 +900,45 @@ Storage write/read controls, and ineffective organizer Storage DELETE. Its
 local status parser now accepts optional stopped services only when API values
 are still present, and it must run under PowerShell 7 because its existing
 `SkipHttpErrorCheck` use is unsupported by Windows PowerShell 5.1.
+
+### M8.5B Full-Graph Wedding Delete Recovery
+
+The credential-backed synthetic Guest staging E2E is now **PASS**: it exercised
+the approved Wedding, Event, Party, Guest, Invitation, targeting, READY,
+credential, resolve, RSVP, reload, invalid credential, regenerated credential,
+and revoked credential paths without recording a credential. Its canonical
+delete exposed a graph-dependent finalization defect: retained recovery Wedding
+`8e619130-e0b1-4285-897b-2ccc69141faa` is `DELETING`, has no Storage objects
+under its authoritative prefix, and returned bounded HTTP 503
+`DELETE_RETRY_REQUIRED` on two canonical retries. Simpler staging Weddings
+deleted through the identical route. No manual staging repair was performed.
+
+A clean local reproduction captured `event_responses_wedding_event_id_fkey`:
+the `ON DELETE RESTRICT` EventResponse-to-WeddingEvent relationship prevents a
+root Wedding cascade while RSVP response data remains. Batch 20 preserves those
+ordinary integrity constraints and replaces the trusted two-argument finalizer
+with one transactional, retry-safe dependency purge. It deletes RSVP/Event
+response leaves, invitation credentials/targeting/invitations, Guests, Finance
+payment/refund/installment/budget leaves, Tasks, Party/Group/Event nodes,
+pending collaborator invitations, trusted receipts, memberships, then the
+Wedding root. The service-only `edge_api` bridge, active-OWNER check, empty
+Storage-before-finalize invariant, RLS, and bounded public response are
+unchanged.
+
+The finalizer locks the authorized DELETING Wedding row and rolls back as a
+single function transaction on any failure. Batch 20 pgTAP covers the full
+Guest/Invitation/RSVP graph plus Task/Event and Budget/Event RESTRICT paths,
+wrong-actor and non-DELETING denial, unrelated-Wedding preservation, Auth-user
+preservation, and absent-target retry behavior. Clean reset and pgTAP passed
+through Batch 20: 18 files / 578 assertions / 0 failures. The full Edge suite
+passed 5 files / 34 tests / 0 failures; the real PostgREST lifecycle/Storage
+matrix remained PASS.
+
+Operational delete diagnostics now emit a redacted structured failure stage for
+`begin_bridge`, `storage_list`, `storage_cleanup`, or `finalize_bridge`, with a
+correlation ID and HTTP status category where available. `callBridge` retains
+only a bridge HTTP status for failed responses and never records raw provider
+or PostgreSQL bodies. Public callers continue to receive only the existing
+bounded `DELETE_RETRY_REQUIRED` response. Batch 20 is source-controlled only
+in this slice: operator deployment and canonical retry of the retained staging
+fixture remain required. M8 stays **IN PROGRESS**.

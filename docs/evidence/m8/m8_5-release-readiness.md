@@ -97,8 +97,10 @@ with Python's standard library and asserts these three modes; CI runs it.
 
 Supabase `functions deploy` honors per-function `config.toml` configuration;
 `--no-verify-jwt` overrides it and must never be applied to `wedding-delete`.
-The public functions must be redeployed and their real staging POSTs retried.
-Class-D deployed E2E remains **IN PROGRESS**, not PASS.
+The public functions were redeployed and their real staging POSTs now reach the
+WeddingOS handlers. The credential-backed result is recorded below; this
+gateway correction does not weaken the organizer-authenticated `wedding-delete`
+route.
 
 ## Synthetic Guest E2E fixture preparation
 
@@ -117,13 +119,11 @@ and optionally invokes the canonical organizer `wedding-delete` route with
 `--cleanup`. It creates only the synthetic labels `WeddingOS Staging Test`,
 `Lễ cưới thử nghiệm`, `Gia đình Test`, and `Khách Test` without phone/email.
 
-The credential-free Node tests pass. An execution attempt stopped before any
-network request because `STAGING_SUPABASE_URL`, `STAGING_SUPABASE_ANON_KEY`, and
-`STAGING_ORGANIZER_ACCESS_TOKEN` are absent. An operator must provide those
-values through the process environment only, run the helper, preserve the
-non-sensitive returned IDs for evidence, and optionally use `--cleanup` after
-inspection. Credential-backed resolve, RSVP, reload, invalid, and revoked
-staging results remain **BLOCKED**, not PASS.
+The credential-free Node tests pass. An operator subsequently executed the
+fixture using process-only configuration. Credential-backed deployed resolve,
+RSVP, current-state reload, invalid-credential denial, credential regeneration,
+and revoked-credential denial all passed. No invitation credential was retained
+in this evidence.
 
 ## Staging Guest INSERT privilege correction
 
@@ -147,8 +147,9 @@ sent as an invalid UUID.
 
 Staging PostgREST configuration must expose exactly `public`, `api_v1`, and
 `edge_api`, as reflected in `supabase/config.toml`; it must not expose
-`internal` or `security`. Batch 19 still requires operator deployment and a
-fresh fixture run. Credential-backed Guest E2E remains **BLOCKED**, not PASS.
+`internal` or `security`. Batch 19 was deployed before the successful
+credential-backed fixture run; Guest E2E is now **PASS**. The canonical delete
+recovery issue below remains an independent release gate.
 
 Local verification after Batch 19 is green: clean `supabase db reset` applied
 `00000000000019_batch_19.sql`; pgTAP passed 17 files / 552 assertions; the
@@ -160,3 +161,31 @@ boundaries. Its environment discovery now tolerates optional local services
 being stopped, but still requires returned API values; it is run with `pwsh`,
 not Windows PowerShell 5.1. The fixture now reports bounded PostgREST
 code/message context without emitting request credentials or tokens.
+
+## Full-graph Wedding delete recovery
+
+Credential-backed Guest staging E2E is **PASS** for a disposable synthetic
+Wedding: creation, Event, InvitationParty, Guest, Invitation, event targeting,
+READY transition, credential generation, deployed resolve, RSVP, current-state
+reload, invalid credential denial, regenerated credential denial, and revoked
+credential denial all completed through the approved paths.
+
+Canonical deletion of that populated graph is **BLOCKED pending Batch 20
+deployment and retest**. The retained recovery fixture is Wedding
+`8e619130-e0b1-4285-897b-2ccc69141faa`, status `DELETING`, with a confirmed
+empty `weddings/{wedding_id}/` Storage prefix. Two canonical delete calls each
+returned bounded HTTP 503 `DELETE_RETRY_REQUIRED`; no manual staging repair was
+performed. Simpler disposable Weddings deleted successfully through the same
+endpoint, so the defect is graph-dependent.
+
+Local reproduction captured the exact PostgreSQL blocker:
+`event_responses_wedding_event_id_fkey` restricts deletion of a Wedding Event
+while its RSVP EventResponse remains. Batch 20 changes only the trusted,
+service-only finalizer to purge Wedding-owned leaves in dependency order before
+the root Wedding delete. It preserves ordinary `ON DELETE RESTRICT` integrity
+rules, Storage-empty-before-finalize ordering, RLS, and the public bounded
+retry envelope. Edge logs now add a redacted failure stage
+(`begin_bridge`, `storage_list`, `storage_cleanup`, or `finalize_bridge`) with
+correlation ID and status category only. Batch 20 must be deployed, then the
+same retained fixture retried through the canonical endpoint before this gate
+can be marked PASS.

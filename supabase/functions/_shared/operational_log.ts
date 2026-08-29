@@ -14,6 +14,21 @@ export type OperationalEvent = {
   rate_limited: boolean;
 };
 
+export type WeddingDeleteFailureStage =
+  | 'begin_bridge'
+  | 'storage_list'
+  | 'storage_cleanup'
+  | 'finalize_bridge';
+
+export type WeddingDeleteStageEvent = {
+  event: 'edge_delete_stage_failed';
+  route: 'wedding_delete';
+  stage: WeddingDeleteFailureStage;
+  outcome: 'provider_failure';
+  status_category: '4xx' | '5xx' | 'unknown';
+  correlation_id: string;
+};
+
 type LogSink = (message: string) => void;
 
 function statusCategory(status: number): OperationalEvent['status_category'] {
@@ -51,6 +66,27 @@ export function logEdgeCompletion(
     correlation_id: correlationId,
     retry_required: retryRequired,
     rate_limited: rateLimited,
+  };
+  sink(JSON.stringify(event));
+}
+
+export function logWeddingDeleteStageFailure(
+  correlationId: string,
+  stage: WeddingDeleteFailureStage,
+  status?: number,
+  sink: LogSink = console.log,
+): void {
+  const event: WeddingDeleteStageEvent = {
+    event: 'edge_delete_stage_failed',
+    route: 'wedding_delete',
+    stage,
+    outcome: 'provider_failure',
+    status_category: status === undefined
+      ? 'unknown'
+      : status >= 500
+      ? '5xx'
+      : '4xx',
+    correlation_id: correlationId,
   };
   sink(JSON.stringify(event));
 }
