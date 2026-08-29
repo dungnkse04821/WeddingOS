@@ -815,16 +815,15 @@ tracked-secret, dependency, real PostgREST, and real Storage-provider gates
 pass. Exact results and non-secret timings are recorded in
 `docs/evidence/m8/m8_5-release-readiness.md`.
 
-M8.5 local readiness is complete; M8 overall remains **IN PROGRESS** and its
-external release evidence remains **BLOCKED**. The host has no Supabase
-access token, Cloudflare Pages project/domain, staging environment variables,
-Cloudflare tooling, Android SDK/device, Google OAuth staging configuration, or
-provider backup/PITR access. Therefore CSP deployment headers, CORS/routing,
-`CF-Connecting-IP` anti-spoof provenance, staging organizer/guest E2E,
-reference-Android and staging-4G NFR results, Google Sign-In, restore/RPO/RTO,
-and rollback drills cannot be honestly verified. The verified source-controlled
-work may be committed, but M8 must not be marked complete while release-blocking
-`M8-P1-006` evidence remains unavailable.
+M8.5 local readiness is complete; M8 overall remains **IN PROGRESS** while the
+remaining external release evidence is completed. Staging has now verified
+Pages CSP/CORS/routing, credential-backed Guest E2E, and full-graph canonical
+Wedding deletion. Outstanding gates are production-like `CF-Connecting-IP`
+anti-spoof provenance, deployed Guest useful-content evidence, a reference
+Android benchmark, Google Sign-In staging E2E, actual provider backup/PITR and
+restore evidence, a staging rollback drill, RPO/RTO evidence, and final
+release-readiness/CI evidence. M8 must not be marked complete until those gates
+have real proof.
 
 A real Cloudflare Pages staging deployment discovered and compiled the Pages
 Functions, but rejected the original `../../../_shared/invitation_proxy`
@@ -833,7 +832,8 @@ helper is at `functions/_shared/invitation_proxy.ts`; both imports now use the
 correct `../../_shared/invitation_proxy` path. Vite client build had already
 passed. This fixes the source-controlled module-resolution defect only; proxy
 routes, fixed upstream authority, header forwarding, and external staging gates
-are unchanged. A redeploy is still required before any staging check can pass.
+are unchanged. The subsequent redeploy completed the staging checks recorded
+below.
 
 The Pages redeploy then passed its Guest Web, CSP/header, approved-origin CORS,
 invalid-origin fail-closed, and Cloudflare-to-Supabase routing checks. Real
@@ -845,8 +845,9 @@ it explicitly retains `verify_jwt = true` for organizer-authenticated
 `wedding-delete`. A Python standard-library TOML parser check guards the three
 modes in CI. The Supabase CLI applies function configuration during
 `functions deploy`; `--no-verify-jwt` is an explicit override and must be used
-only for the two public functions if an operator chooses flags. Cloudflare and
-Supabase redeploy/retest remain required before Class-D staging E2E can pass.
+only for the two public functions if an operator chooses flags. The functions
+were redeployed and the credential-backed Class-D staging E2E subsequently
+passed.
 
 The redeployed public Class-D routes now return their bounded 404
 `INVITATION_UNAVAILABLE` envelope for `{}` through Cloudflare Pages, proving
@@ -861,8 +862,8 @@ An operator subsequently supplied deployment-time access outside the repository
 and completed the credential-backed synthetic Guest E2E. Resolve, RSVP,
 current-state reload, invalid credential denial, regenerated credential denial,
 and revoked credential denial passed without retaining a credential in source,
-logs, or documentation. M8 remains **IN PROGRESS** for the distinct
-full-graph-delete recovery and other external release gates.
+logs, or documentation. M8 remains **IN PROGRESS** for the remaining external
+release gates.
 
 ### M8.5B Staging Guest INSERT Privilege Correction
 
@@ -885,9 +886,8 @@ normalization, outsider denial, ARCHIVED/DELETING denial, and no DELETE grant.
 The fixture already uses a plain HTTPS `map_link`; no URL correction was needed.
 Partial staging data is operator-owned and must be cleaned through canonical
 Wedding delete. Batch 19 was deployed and the fixture completed successfully;
-Guest E2E is **PASS**. M8 remains **IN PROGRESS** because the populated
-Wedding's canonical finalization exposed the distinct full-graph recovery issue
-recorded below.
+Guest E2E is **PASS**. M8 remains **IN PROGRESS** for the remaining external
+release gates.
 
 Verification is green: a clean local reset applied Batch 19 and the full pgTAP
 suite passed 17 files / 552 assertions. The focused client regression expanded
@@ -903,15 +903,13 @@ are still present, and it must run under PowerShell 7 because its existing
 
 ### M8.5B Full-Graph Wedding Delete Recovery
 
-The credential-backed synthetic Guest staging E2E is now **PASS**: it exercised
-the approved Wedding, Event, Party, Guest, Invitation, targeting, READY,
+The credential-backed synthetic Guest staging E2E is **PASS**: it exercised the
+approved Wedding, Event, Party, Guest, Invitation, targeting, READY,
 credential, resolve, RSVP, reload, invalid credential, regenerated credential,
-and revoked credential paths without recording a credential. Its canonical
-delete exposed a graph-dependent finalization defect: retained recovery Wedding
-`8e619130-e0b1-4285-897b-2ccc69141faa` is `DELETING`, has no Storage objects
-under its authoritative prefix, and returned bounded HTTP 503
-`DELETE_RETRY_REQUIRED` on two canonical retries. Simpler staging Weddings
-deleted through the identical route. No manual staging repair was performed.
+and revoked credential paths without recording a credential. Its retained
+recovery Wedding `8e619130-e0b1-4285-897b-2ccc69141faa` had reached `DELETING`,
+had no Storage objects under its authoritative prefix, and had returned bounded
+HTTP 503 `DELETE_RETRY_REQUIRED` on two canonical retries before the fix.
 
 A clean local reproduction captured `event_responses_wedding_event_id_fkey`:
 the `ON DELETE RESTRICT` EventResponse-to-WeddingEvent relationship prevents a
@@ -939,6 +937,11 @@ Operational delete diagnostics now emit a redacted structured failure stage for
 correlation ID and HTTP status category where available. `callBridge` retains
 only a bridge HTTP status for failed responses and never records raw provider
 or PostgreSQL bodies. Public callers continue to receive only the existing
-bounded `DELETE_RETRY_REQUIRED` response. Batch 20 is source-controlled only
-in this slice: operator deployment and canonical retry of the retained staging
-fixture remain required. M8 stays **IN PROGRESS**.
+bounded `DELETE_RETRY_REQUIRED` response. Batch 20 and the updated
+`wedding-delete` Edge Function were deployed to staging. After securely
+refreshing the organizer session, the exact same canonical retry returned HTTP
+200 `DELETED`, and an organizer PostgREST query returned zero rows for the
+Wedding ID. No direct SQL cleanup or manual state repair was used. This proves
+full Guest/Invitation/RSVP graph deletion and recovery retry semantics on real
+staging data while preserving normal `ON DELETE RESTRICT` business semantics.
+M8 stays **IN PROGRESS** for the remaining external release gates.

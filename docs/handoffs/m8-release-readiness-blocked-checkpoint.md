@@ -57,15 +57,16 @@ This is a temporary handoff, not the authoritative final M8 checkpoint.
   deployed resolve, RSVP, current-state reload, invalid credential denial,
   regenerated credential denial, and revoked credential denial all completed
   through the approved paths. No raw credential is recorded.
-- The same full Guest/Invitation/RSVP fixture exposed a graph-dependent
-  canonical delete failure. Wedding `8e619130-e0b1-4285-897b-2ccc69141faa`
-  remains `DELETING`, with zero authoritative-prefix Storage objects, after two
-  canonical HTTP 503 `DELETE_RETRY_REQUIRED` responses. Do not manually repair
-  it. Local reproduction identified `event_responses_wedding_event_id_fkey` as
-  the exact root-delete blocker. Batch 20 adds a service-only transactional
-  dependency purge while preserving ordinary RESTRICT constraints and adds
-  redacted failure-stage logs. Deploy Batch 20, then retry this retained fixture
-  only through the canonical endpoint before treating full-graph delete as PASS.
+- The retained full Guest/Invitation/RSVP recovery fixture previously reached
+  `DELETING` with zero authoritative-prefix Storage objects and two canonical
+  HTTP 503 `DELETE_RETRY_REQUIRED` responses. Local reproduction identified
+  `event_responses_wedding_event_id_fkey` as the exact root-delete blocker.
+  Batch 20's service-only transactional dependency purge and the updated
+  `wedding-delete` Edge Function were deployed to staging. After an organizer
+  session refresh, retrying the exact canonical endpoint returned HTTP 200
+  `DELETED`; an organizer PostgREST query returned zero Wedding rows. No direct
+  SQL cleanup or manual state repair was used. Full-graph deletion and recovery
+  retry semantics are **PASS**, while normal RESTRICT business semantics remain.
 - Batch 20 verification is green locally: reset applied the migration and
   pgTAP passed 18 files / 578 assertions; full Edge regression passed 5 files /
   34 tests; and the real local PostgREST lifecycle/Storage matrix passed. Run
@@ -87,9 +88,9 @@ Set-Location ../guest_web; npm test; npm run lint; npm run build
 npm audit --omit=dev --audit-level=high
 ```
 
-- DB: latest migration `00000000000018_batch_18.sql`; 16 files / 538 pgTAP
+- DB: latest migration `00000000000020_batch_20.sql`; 18 files / 578 pgTAP
   assertions / 0 failures.
-- Edge: 5 files / 33 Deno tests / 0 failures.
+- Edge: 5 files / 34 Deno tests / 0 failures.
 - Flutter: 57 tests / 0 failures; analyzer 0 errors / 0 warnings / 212 existing
   INFO diagnostics.
 - Guest Web: 5 files / 18 tests / 0 failures; lint pass; build pass at 758 ms
@@ -102,14 +103,14 @@ npm audit --omit=dev --audit-level=high
 
 ## Missing external capabilities
 
-- Batch 20 deployment plus canonical retry of the retained full-graph Wedding
-  delete fixture;
 - deployed `CF-Connecting-IP` anti-spoof provenance checks;
+- deployed Guest Web useful-content evidence under the approved 4G profile;
 - Android SDK and reference device/emulator;
 - Google OAuth staging client, redirect/domain, Supabase provider, and signing
   fingerprint configuration;
-- provider backup/PITR controls and isolated restore environment; and
-- a deployed rollback environment with a prior known-good release.
+- provider backup/PITR controls and isolated restore environment;
+- a deployed rollback environment with a prior known-good release; and
+- final release-readiness/CI evidence.
 
 `npx supabase projects list` was attempted and failed with no access token.
 No relevant deployment environment-variable names were present, and `wrangler`,
@@ -118,19 +119,16 @@ recorded.
 
 ## Operator inputs and continuation
 
-1. Deploy Batch 20 and the matching Edge source to the isolated staging
-   project, then retry only the retained `DELETING` fixture through the
-   canonical organizer endpoint. Do not use direct SQL or manual repairs.
-2. Verify deployed `CF-Connecting-IP` anti-spoof provenance through the Pages
+1. Verify deployed `CF-Connecting-IP` anti-spoof provenance through the Pages
    to Supabase path, without recording client IPs.
-3. Preserve the already-passing synthetic Guest evidence and run any remaining
+2. Preserve the already-passing synthetic Guest evidence and run any remaining
    organizer/archive/cover smoke only on disposable synthetic data.
-4. Configure and verify Android Google Sign-In, then measure the 500-task and
+3. Configure and verify Android Google Sign-In, then measure the 500-task and
    300-guest fixtures on the agreed reference device/emulator.
-5. Measure the deployed Guest Web resolve path under the approved 4G profile.
-6. Verify the actual provider backup/PITR tier, run an isolated restore drill,
+4. Measure the deployed Guest Web resolve path under the approved 4G profile.
+5. Verify the actual provider backup/PITR tier, run an isolated restore drill,
    record RPO <= 24 h/RTO <= 4 h evidence, and run a deployment rollback drill.
-7. Re-run the full release gate, update the implementation log and project
+6. Re-run the full release gate, update the implementation log and project
    state, then create the authoritative `m8-security-nfr-hardening-checkpoint`.
 
 ## Security and stop boundary

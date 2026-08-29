@@ -50,11 +50,11 @@ The local host has no staging deployment authority or runtime:
 
 ## Release-blocking external gates
 
-`M8-P1-006` is **OPEN / BLOCKED** until an operator provides an isolated
-staging Supabase project, Cloudflare Pages project/domain, and time-bounded
-access to deploy synthetic fixtures. The operator must then execute the
-runbook's deployed checks, including a spoofed forwarding-header test that
-proves Cloudflare owns `CF-Connecting-IP` at Pages and Edge.
+`M8-P1-006` remains **OPEN / BLOCKED** for the remaining release evidence.
+Staging deployment, credential-backed Guest E2E, and full-graph canonical
+Wedding deletion are now verified. The remaining deployed checks include a
+spoofed forwarding-header test that proves Cloudflare owns
+`CF-Connecting-IP` at Pages and Edge, plus the release/recovery gates below.
 
 The following evidence is also unavailable and cannot be fabricated:
 
@@ -63,7 +63,8 @@ The following evidence is also unavailable and cannot be fabricated:
 - Google Sign-In end-to-end setup (OAuth client, signing fingerprints, Supabase
   provider, authorized domain/redirect); and
 - provider-tier backup/PITR capability, isolated restore drill, measured
-  RPO <= 24 hours/RTO <= 4 hours, and deployed rollback drill.
+  RPO <= 24 hours/RTO <= 4 hours, and deployed rollback drill; and
+- final release-readiness/CI evidence.
 
 These are environmental release gates, not local code defects. M8 must remain
 in progress and must not be committed as complete until the evidence exists.
@@ -170,13 +171,15 @@ READY transition, credential generation, deployed resolve, RSVP, current-state
 reload, invalid credential denial, regenerated credential denial, and revoked
 credential denial all completed through the approved paths.
 
-Canonical deletion of that populated graph is **BLOCKED pending Batch 20
-deployment and retest**. The retained recovery fixture is Wedding
-`8e619130-e0b1-4285-897b-2ccc69141faa`, status `DELETING`, with a confirmed
-empty `weddings/{wedding_id}/` Storage prefix. Two canonical delete calls each
-returned bounded HTTP 503 `DELETE_RETRY_REQUIRED`; no manual staging repair was
-performed. Simpler disposable Weddings deleted successfully through the same
-endpoint, so the defect is graph-dependent.
+The retained recovery fixture was Wedding
+`8e619130-e0b1-4285-897b-2ccc69141faa`. Before the fix it was `DELETING`, had
+an empty authoritative Storage prefix, and returned bounded HTTP 503
+`DELETE_RETRY_REQUIRED` on two canonical retries. Batch 20 and the updated
+`wedding-delete` Edge Function were then deployed to staging. After securely
+refreshing the organizer session, the exact same canonical endpoint returned
+HTTP 200 `{ "ok": true, "status": "DELETED" }`; an organizer PostgREST query
+for that Wedding ID returned zero rows. No direct SQL cleanup or manual state
+repair was used.
 
 Local reproduction captured the exact PostgreSQL blocker:
 `event_responses_wedding_event_id_fkey` restricts deletion of a Wedding Event
@@ -184,8 +187,8 @@ while its RSVP EventResponse remains. Batch 20 changes only the trusted,
 service-only finalizer to purge Wedding-owned leaves in dependency order before
 the root Wedding delete. It preserves ordinary `ON DELETE RESTRICT` integrity
 rules, Storage-empty-before-finalize ordering, RLS, and the public bounded
-retry envelope. Edge logs now add a redacted failure stage
+retry envelope. Edge logs add a redacted failure stage
 (`begin_bridge`, `storage_list`, `storage_cleanup`, or `finalize_bridge`) with
-correlation ID and status category only. Batch 20 must be deployed, then the
-same retained fixture retried through the canonical endpoint before this gate
-can be marked PASS.
+correlation ID and status category only. This real staging recovery proves the
+full Guest/Invitation/RSVP graph deletion and retry semantics are **PASS**
+while normal business-level `ON DELETE RESTRICT` semantics remain intact.
