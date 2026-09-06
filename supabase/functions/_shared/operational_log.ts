@@ -12,6 +12,15 @@ export type OperationalEvent = {
   correlation_id: string;
   retry_required: boolean;
   rate_limited: boolean;
+  provenance?: 'cloudflare' | 'unverified';
+  trusted_gateway?: boolean;
+  trusted_cf_ip_present?: boolean;
+};
+
+export type ClassDOperationalContext = {
+  provenance: 'cloudflare' | 'unverified';
+  trustedGateway: boolean;
+  trustedCfIpPresent: boolean;
 };
 
 export type WeddingDeleteFailureStage =
@@ -44,6 +53,7 @@ export function logEdgeCompletion(
   status: number,
   sink: LogSink = console.log,
   unexpected = false,
+  classDContext?: ClassDOperationalContext,
 ): void {
   const rateLimited = status === 429;
   const retryRequired = status >= 500;
@@ -66,6 +76,13 @@ export function logEdgeCompletion(
     correlation_id: correlationId,
     retry_required: retryRequired,
     rate_limited: rateLimited,
+    ...(classDContext
+      ? {
+        provenance: classDContext.provenance,
+        trusted_gateway: classDContext.trustedGateway,
+        trusted_cf_ip_present: classDContext.trustedCfIpPresent,
+      }
+      : {}),
   };
   sink(JSON.stringify(event));
 }

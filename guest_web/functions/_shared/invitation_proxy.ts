@@ -1,6 +1,7 @@
 export type ProxyEnvironment = {
   SUPABASE_FUNCTIONS_ORIGIN?: string;
   SUPABASE_ANON_KEY?: string;
+  WEDDINGOS_GATEWAY_PROOF?: string;
 };
 
 const ALLOWED_METHODS = new Set(['POST', 'OPTIONS']);
@@ -44,9 +45,12 @@ export async function proxyInvitationRequest(
   const contentType = request.headers.get('content-type');
   const origin = request.headers.get('origin');
   const cloudflareIp = request.headers.get('cf-connecting-ip');
+  const gatewayProof = environment.WEDDINGOS_GATEWAY_PROOF?.trim();
   if (contentType) headers.set('content-type', contentType);
   if (origin) headers.set('origin', origin);
   if (cloudflareIp) headers.set('cf-connecting-ip', cloudflareIp);
+  // This secret comes only from the Pages environment, never from the request.
+  if (gatewayProof) headers.set('x-weddingos-gateway-proof', gatewayProof);
 
   return fetcher(target, {
     method: request.method,

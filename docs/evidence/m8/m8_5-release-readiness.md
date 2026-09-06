@@ -115,6 +115,30 @@ failure-closed behavior, idempotent initialization, ID-token handoff, bounded
 error mapping, session recovery, and wedding-delete `AUTH_LOST` handling;
 native Google account handoff requires the real staging device proof above.
 
+## CF-Connecting-IP provenance
+
+**CF-CONNECTING-IP PROVENANCE = EXTERNALLY BLOCKED.** Source review found that
+the former Pages proxy stripped `X-Forwarded-For` and `X-Real-IP` but relayed
+`CF-Connecting-IP` without an enforceable Pages-to-Edge origin proof. Because
+the public Class-D Supabase Functions can also be called directly, that header
+name alone could be forged and was not sufficient provenance.
+
+The source correction adds a deployment-only `WEDDINGOS_GATEWAY_PROOF` shared
+by Cloudflare Pages and the two public Edge Functions. Pages creates the proof
+header from its secret environment and never forwards a client-supplied proof.
+Edge uses `CF-Connecting-IP` only with a valid proof; otherwise, including a
+direct forged `CF-Connecting-IP`, `X-Forwarded-For`, `X-Real-IP`, or `Forwarded`
+request, it keeps the public capability flow functional in the
+`unverified-network` rate-limit partition. Logs emit only bounded provenance
+flags and correlation ID, never raw IP, token, or proof.
+
+To close staging evidence, the operator must set the same secret in Pages and
+both public Edge environments, redeploy them, and send the documented Pages and
+direct spoof probes with a synthetic credential only in the operator shell.
+Platform logs for returned correlation IDs must show trusted Cloudflare
+provenance for the Pages calls and unverified provenance for the direct
+forged-header call. No secret, token, or IP belongs in the evidence.
+
 ## Cloudflare Pages import correction
 
 A real staging deployment proved Vite production build and Pages Functions

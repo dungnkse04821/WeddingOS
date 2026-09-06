@@ -1,4 +1,4 @@
-import { classDLimiterKey, isValidRawToken, parseAllowedOrigins, publicError, securityHeaders } from '../invitation-resolve/index.ts';
+import { classDLimiterKey, classDProvenance, isValidRawToken, parseAllowedOrigins, publicError, securityHeaders } from '../invitation-resolve/index.ts';
 import { BoundedBodyError, boundedInteger, createCorrelationId, fetchWithDeadline, readBoundedJson, readBoundedResponseJson } from '../_shared/edge_safety.ts';
 import { logEdgeCompletion } from '../_shared/operational_log.ts';
 
@@ -89,11 +89,11 @@ export async function submitRsvp(request: Request): Promise<Response> {
     headers = securityHeaders(origin, allowedOrigins);
     headers.set('X-Request-ID', requestId);
     const response = await submitRsvpCore(request, allowedOrigins, origin, headers);
-    logEdgeCompletion('invitation_rsvp', requestId, startedAt, response.status);
+    logEdgeCompletion('invitation_rsvp', requestId, startedAt, response.status, console.log, false, classDProvenance(request));
     return response;
   } catch (_) {
     const response = publicError(503, 'TEMPORARY_UNAVAILABLE', headers);
-    logEdgeCompletion('invitation_rsvp', requestId, startedAt, response.status, console.log, true);
+    logEdgeCompletion('invitation_rsvp', requestId, startedAt, response.status, console.log, true, classDProvenance(request));
     return response;
   }
 }

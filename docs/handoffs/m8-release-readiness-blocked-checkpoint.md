@@ -139,6 +139,25 @@ No relevant deployment environment-variable names were present, and `wrangler`,
 `gh`, `adb`, and `emulator` were unavailable. No credential values were read or
 recorded.
 
+## CF-Connecting-IP provenance gate
+
+**EXTERNALLY BLOCKED.** Public Class-D Functions remain directly reachable, so
+the old header-only trust model could not prove that `CF-Connecting-IP` came
+from Cloudflare. Pages now overwrites client forwarding headers and attaches a
+secret-bound `WEDDINGOS_GATEWAY_PROOF`; Edge trusts a CF IP only when the same
+secret exists in its deployment environment and the proof matches. Missing or
+forged proof remains an allowed public capability call but is rate-limited under
+`unverified-network`, never under a forged trusted IP. No raw IP, invitation
+token, or proof is logged.
+
+To resume, set the same new secret in Cloudflare Pages and the deployed
+`invitation-resolve`/`invitation-rsvp` Functions, redeploy, then run the
+runbook's normal, spoofed-Pages, and direct forged-header probes using only an
+ephemeral synthetic token in the operator shell. Inspect platform logs by
+returned correlation ID: all Pages probes must be trusted Cloudflare provenance;
+direct forged `CF-Connecting-IP` must be unverified. Do not add the secret or
+token to source, docs, or logs.
+
 ## Operator inputs and continuation
 
 1. Verify deployed `CF-Connecting-IP` anti-spoof provenance through the Pages

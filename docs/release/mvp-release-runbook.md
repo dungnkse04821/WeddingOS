@@ -54,8 +54,12 @@ Set these Pages runtime variables through the deployment provider, not source:
 
 The proxy rejects invalid upstream configuration, accepts only POST/OPTIONS,
 and does not forward `X-Forwarded-For` or `X-Real-IP`. Cloudflare supplies
-`CF-Connecting-IP`; the staging proof must show it cannot be replaced by a
-client-supplied value before Edge uses it for rate-limit partitioning.
+`CF-Connecting-IP`. Set the same deployment-only `WEDDINGOS_GATEWAY_PROOF`
+secret in Cloudflare Pages and in both public Supabase Edge Functions. Edge uses
+`CF-Connecting-IP` for a rate-limit partition only when that proof is valid;
+direct requests remain available as Class-D capability requests but use the
+lower-trust `unverified-network` partition. The staging proof must show
+forwarding headers cannot be replaced by a client-supplied value.
 
 `guest_web/public/_headers` is copied to the Pages build output. It supplies
 the CSP, `nosniff`, referrer, permissions, frame, and cache controls. The
@@ -82,6 +86,13 @@ staging deployment must be checked with `curl -I https://<staging-guest-host>/`.
    write-read, cover upload-read, archive, and disposable-Wedding delete.
 8. Verify deployed Guest resolve, RSVP, reload, cover fallback, credential
    revocation/expiration, VietQR gating, CORS/preflight, and header set.
+9. With an ephemeral synthetic invitation token held only in the operator shell,
+   send normal and spoofed `X-Forwarded-For`, `X-Real-IP`, and `Forwarded`
+   resolve requests through Pages, followed by a direct Supabase Function
+   request with forged `CF-Connecting-IP` and gateway proof. Inspect Edge logs
+   by returned `X-Request-ID`: Pages calls must be `cloudflare`/trusted and the
+   direct call must be `unverified` with both trusted flags false. Do not record
+   the token, IP, or gateway proof.
 
 ## Google Sign-In readiness
 

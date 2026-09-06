@@ -21,6 +21,14 @@ export const DATABASE_TIMEOUT_MS = 8_000;
 export const SIGNED_URL_TIMEOUT_MS = 5_000;
 const AUTHORITY_RESPONSE_LIMIT_BYTES = 1024 * 1024;
 const SIGNED_URL_RESPONSE_LIMIT_BYTES = 64 * 1024;
+const GATEWAY_PROOF_HEADER = 'x-weddingos-gateway-proof';
+
+export type ClassDProvenance = {
+  provenance: 'cloudflare' | 'unverified';
+  trustedGateway: boolean;
+  trustedCfIpPresent: boolean;
+  network: string;
+};
 
 export function parseAllowedOrigins(value: string | undefined): Set<string> {
   const configured = value
@@ -77,19 +85,47 @@ export function publicError(
   });
 }
 
+function constantTimeEquals(left: string, right: string): boolean {
+  let mismatch = left.length ^ right.length;
+  const length = Math.max(left.length, right.length);
+  for (let index = 0; index < length; index++) {
+    mismatch |= (left.charCodeAt(index) || 0) ^ (right.charCodeAt(index) || 0);
+  }
+  return mismatch === 0;
+}
+
+export function classDProvenance(
+  request: Request,
+  expectedGatewayProof = Deno.env.get('WEDDINGOS_GATEWAY_PROOF'),
+): ClassDProvenance {
+  const expectedProof = expectedGatewayProof?.trim();
+  const suppliedProof = request.headers.get(GATEWAY_PROOF_HEADER);
+  const trustedGateway = Boolean(
+    expectedProof && suppliedProof && constantTimeEquals(suppliedProof, expectedProof),
+  );
+  const cloudflareIp = request.headers.get('cf-connecting-ip')?.trim();
+  const trustedCfIpPresent = trustedGateway && Boolean(cloudflareIp);
+  return {
+    provenance: trustedCfIpPresent ? 'cloudflare' : 'unverified',
+    trustedGateway,
+    trustedCfIpPresent,
+    network: trustedCfIpPresent ? cloudflareIp! : 'unverified-network',
+  };
+}
+
 export function networkSignal(request: Request): string {
-  // Only Cloudflare's provider header is eligible for a network partition.
-  // Direct local/Supabase requests can supply X-Forwarded-For and X-Real-IP.
-  return request.headers.get('cf-connecting-ip')?.trim() || 'unverified-network';
+  // Direct callers can forge all forwarding headers, including CF-Connecting-IP.
+  return classDProvenance(request).network;
 }
 
 export async function classDLimiterKey(
   route: 'D-INV-001' | 'D-RSV-001',
   rawToken: string,
   request: Request,
+  provenance = classDProvenance(request),
 ): Promise<string> {
   const [networkHash, tokenHash] = await Promise.all([
-    sha256Hex(`${route}:network:${networkSignal(request)}`),
+    sha256Hex(`${route}:network:${provenance.network}`),
     sha256Hex(`${route}:token:${rawToken}`),
   ]);
   // The persisted key is route-scoped and contains only truncated SHA-256 output.
@@ -114,11 +150,11 @@ export async function resolveInvitation(request: Request): Promise<Response> {
       origin,
       headers,
     );
-    logEdgeCompletion('invitation_resolve', requestId, startedAt, response.status);
+    logEdgeCompletion('invitation_resolve', requestId, startedAt, response.status, console.log, false, classDProvenance(request));
     return response;
   } catch (_) {
     const response = publicError(503, 'TEMPORARY_ERROR', headers);
-    logEdgeCompletion('invitation_resolve', requestId, startedAt, response.status, console.log, true);
+    logEdgeCompletion('invitation_resolve', requestId, startedAt, response.status, console.log, true, classDProvenance(request));
     return response;
   }
 }

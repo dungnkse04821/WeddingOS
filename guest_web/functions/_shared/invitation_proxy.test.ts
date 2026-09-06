@@ -5,6 +5,7 @@ import { proxyInvitationRequest } from './invitation_proxy';
 const environment = {
   SUPABASE_FUNCTIONS_ORIGIN: 'https://example.supabase.co',
   SUPABASE_ANON_KEY: 'publishable-test-key',
+  WEDDINGOS_GATEWAY_PROOF: 'test-gateway-proof',
 };
 
 describe('Cloudflare invitation proxy', () => {
@@ -18,6 +19,8 @@ describe('Cloudflare invitation proxy', () => {
         'cf-connecting-ip': '198.51.100.10',
         'x-forwarded-for': '203.0.113.1',
         'x-real-ip': '203.0.113.2',
+        forwarded: 'for=203.0.113.3',
+        'x-weddingos-gateway-proof': 'attacker-supplied-proof',
       },
       body: '{}',
     }), environment, 'invitation-resolve', fetcher);
@@ -27,6 +30,8 @@ describe('Cloudflare invitation proxy', () => {
     expect(new Headers(init?.headers).get('cf-connecting-ip')).toBe('198.51.100.10');
     expect(new Headers(init?.headers).get('x-forwarded-for')).toBeNull();
     expect(new Headers(init?.headers).get('x-real-ip')).toBeNull();
+    expect(new Headers(init?.headers).get('forwarded')).toBeNull();
+    expect(new Headers(init?.headers).get('x-weddingos-gateway-proof')).toBe('test-gateway-proof');
   });
 
   it('does not accept a client-selected function target', async () => {

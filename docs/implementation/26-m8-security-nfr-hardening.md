@@ -984,3 +984,29 @@ handoff, and missing-token rejection. Existing coverage retains service-role
 rejection from public config, safe error mapping, session recovery, and
 `AUTH_LOST` for authenticated Edge failure. Native Google handoff remains a
 real-device E2E requirement. M8 remains **IN PROGRESS**.
+
+### M8.5D CF-Connecting-IP Provenance
+
+**CF-CONNECTING-IP PROVENANCE = EXTERNALLY BLOCKED.** The prior Class-D limiter
+ignored `X-Forwarded-For` and `X-Real-IP`, but trusted a named
+`CF-Connecting-IP` header without proving that Cloudflare Pages, rather than a
+direct public Function caller, supplied it. Direct Class-D Functions are
+intentionally reachable for their invitation-credential capability, so the
+header-only design was not an enforceable trust boundary.
+
+Pages now sends a server-side `WEDDINGOS_GATEWAY_PROOF` from its secret
+environment. Public Edge Functions compare it against their own secret value
+before accepting `CF-Connecting-IP`; the proof is never logged. Invalid or
+missing proof, including direct requests that forge forwarding/proof headers,
+use the route-scoped, non-reversible token dimension plus
+`unverified-network`. This is Option B: direct Class-D requests retain the
+product capability but do not receive trusted network provenance. Completion
+logs add only `provenance`, `trusted_gateway`, and
+`trusted_cf_ip_present` alongside the existing correlation ID.
+
+Local unit tests cover the Pages overwrite/strip boundary, valid proof,
+forged/missing proof, all three forwarding headers, route-scoped token hashing,
+and redacted provenance logs. The shared secret must still be set and the
+Pages/Edge deployments retested with the runbook probes; until the operator
+inspects real correlation-ID logs, staging proof remains blocked. M8 remains
+**IN PROGRESS**.

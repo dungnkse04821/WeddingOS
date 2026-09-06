@@ -51,3 +51,35 @@ Deno.test('structured operational event cannot carry request or credential mater
     throw new Error('retry outcome was not classified');
   }
 });
+
+Deno.test('Class-D provenance logs only bounded provenance fields', () => {
+  const messages: string[] = [];
+  logEdgeCompletion(
+    'invitation_resolve',
+    'f725ce86-b5fd-4470-a423-abece6a2ca4d',
+    performance.now(),
+    200,
+    (message) => messages.push(message),
+    false,
+    {
+      provenance: 'cloudflare',
+      trustedGateway: true,
+      trustedCfIpPresent: true,
+    },
+  );
+
+  const serialized = messages[0];
+  for (const forbidden of ['198.51.100.17', 'gateway-proof', 'token', 'authorization']) {
+    if (serialized.toLowerCase().includes(forbidden)) {
+      throw new Error(`sensitive provenance material leaked: ${forbidden}`);
+    }
+  }
+  const event = JSON.parse(serialized);
+  if (
+    event.provenance !== 'cloudflare' ||
+    event.trusted_gateway !== true ||
+    event.trusted_cf_ip_present !== true
+  ) {
+    throw new Error('Class-D provenance evidence was not logged.');
+  }
+});

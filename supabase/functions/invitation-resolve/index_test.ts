@@ -1,4 +1,4 @@
-import { classDLimiterKey, isValidRawToken, networkSignal, parseAllowedOrigins, RESOLVE_BODY_LIMIT_BYTES, resolveInvitation, securityHeaders, sha256Hex } from './index.ts';
+import { classDLimiterKey, classDProvenance, isValidRawToken, networkSignal, parseAllowedOrigins, RESOLVE_BODY_LIMIT_BYTES, resolveInvitation, securityHeaders, sha256Hex } from './index.ts';
 
 const validToken = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk012345';
 
@@ -68,35 +68,49 @@ Deno.test('limiter digest does not contain raw network signal', async () => {
   }
 });
 
-Deno.test('Class-D limiter keys combine trusted-preferred network and non-reversible token dimensions', async () => {
+Deno.test('Class-D limiter keys require gateway proof for trusted Cloudflare provenance', async () => {
   const token = validToken;
   const cloudflareRequest = new Request('http://local', {
     headers: {
       'cf-connecting-ip': '198.51.100.17',
       'x-forwarded-for': '203.0.113.18, 10.0.0.1',
       'x-real-ip': '192.0.2.9',
+      forwarded: 'for=203.0.113.19',
+      'x-weddingos-gateway-proof': 'trusted-proof',
     },
   });
-  if (networkSignal(cloudflareRequest) !== '198.51.100.17') {
-    throw new Error('CF-Connecting-IP must take precedence when supplied by the provider.');
+  const cloudflareProvenance = classDProvenance(cloudflareRequest, 'trusted-proof');
+  if (cloudflareProvenance.provenance !== 'cloudflare' || !cloudflareProvenance.trustedGateway || !cloudflareProvenance.trustedCfIpPresent || cloudflareProvenance.network !== '198.51.100.17') {
+    throw new Error('Valid gateway proof must be required before trusting CF-Connecting-IP.');
   }
   const directRequest = new Request('http://local', {
-    headers: { 'x-forwarded-for': '203.0.113.18', 'x-real-ip': '192.0.2.9' },
+    headers: {
+      'cf-connecting-ip': '203.0.113.200',
+      'x-forwarded-for': '203.0.113.18',
+      'x-real-ip': '192.0.2.9',
+      forwarded: 'for=203.0.113.19',
+      'x-weddingos-gateway-proof': 'forged-proof',
+    },
   });
-  if (networkSignal(directRequest) !== 'unverified-network') {
-    throw new Error('Untrusted forwarded headers must not become a limiter identity.');
+  const directProvenance = classDProvenance(directRequest, 'trusted-proof');
+  if (directProvenance.provenance !== 'unverified' || directProvenance.trustedGateway || directProvenance.trustedCfIpPresent || directProvenance.network !== 'unverified-network') {
+    throw new Error('Forged forwarding headers or gateway proof must not become trusted.');
   }
-  const key = await classDLimiterKey('D-INV-001', token, cloudflareRequest);
+  if (networkSignal(directRequest) !== 'unverified-network') {
+    throw new Error('Direct calls must use the unverified network partition.');
+  }
+  const key = await classDLimiterKey('D-INV-001', token, cloudflareRequest, cloudflareProvenance);
   const sameNetworkOtherToken = await classDLimiterKey(
     'D-INV-001',
     'BCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk0123456',
     cloudflareRequest,
+    cloudflareProvenance,
   );
-  const rsvpKey = await classDLimiterKey('D-RSV-001', token, cloudflareRequest);
+  const rsvpKey = await classDLimiterKey('D-RSV-001', token, cloudflareRequest, cloudflareProvenance);
   if (!/^D-INV-001:n:[a-f0-9]{32}:t:[a-f0-9]{32}$/.test(key)) {
     throw new Error('Unexpected bounded Class-D limiter key format.');
   }
-  if (key.includes(token) || key.includes('198.51.100.17')) {
+  if (key.includes(token) || key.includes('198.51.100.17') || key.includes('trusted-proof')) {
     throw new Error('Limiter key leaked token or network source.');
   }
   if (key === sameNetworkOtherToken || key === rsvpKey) {
