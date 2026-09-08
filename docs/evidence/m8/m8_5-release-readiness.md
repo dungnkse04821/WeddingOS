@@ -159,6 +159,34 @@ hash, raw header, token, or IP is recorded. The production retest now confirms
 the configured proof is present, forwarded, and matched. These Boolean fields
 remain as safe, useful provenance-health evidence.
 
+## M8.5E deployed Guest performance / FUC
+
+**DEPLOYED GUEST FUC = EXTERNALLY BLOCKED.** The deployed target is
+`https://weddingos-staging.pages.dev`. FUC is the first rendered
+`.invitation-card` after the real `/v1/invitation/resolve` response; the static
+shell, loading card, spinner, skeleton, and error states do not qualify.
+
+The repository now contains `scripts/m8_5e_guest_fuc_staging.mjs`. It launches
+installed Chrome headlessly through CDP, disables and clears cache before every
+navigation, and performs at least five cold loads under each profile:
+
+- normal desktop: unthrottled network and CPU 1x;
+- synthetic fixed 4G: 150 ms latency, 4 Mbps download, 3 Mbps upload, CPU 4x.
+
+The harness records FUC, same-origin resolve duration, transferred resource
+bytes, and document readiness for every run, then reports min, median,
+nearest-rank p90, max, and mean. With five samples, nearest-rank p90 is the
+maximum sample. Source inspection found no service worker. The acceptance gate
+is fixed-4G FUC p90 below 3,000 ms.
+
+No valid `STAGING_INVITATION_TOKEN` is available to this harness process, and
+the browser has no retained live invitation session. Therefore no real timing
+samples or PASS claim exist yet. The operator must supply a disposable valid
+staging credential in process environment only, run the harness, retain only
+its bounded JSON timings, clear the variable, and clean up its synthetic
+Wedding through canonical Wedding delete. No token, full invitation URL, JWT,
+email, secret, or raw IP may enter evidence.
+
 ## Cloudflare Pages import correction
 
 A real staging deployment proved Vite production build and Pages Functions

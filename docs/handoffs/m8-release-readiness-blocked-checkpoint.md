@@ -172,9 +172,13 @@ token, or IP may be retained.
 
 1. Preserve the already-passing synthetic Guest evidence and run any remaining
    organizer/archive/cover smoke only on disposable synthetic data.
-2. Configure and verify Android Google Sign-In, then measure the 500-task and
+2. Supply a valid disposable invitation credential only through
+   `STAGING_INVITATION_TOKEN`, run
+   `node scripts/m8_5e_guest_fuc_staging.mjs`, retain only timing output, clear
+   the variable, and delete the fixture through canonical Wedding delete. The
+   fixed-4G nearest-rank p90 must be below 3,000 ms.
+3. Configure and verify Android Google Sign-In, then measure the 500-task and
    300-guest fixtures on the agreed reference device/emulator.
-3. Measure the deployed Guest Web resolve path under the approved 4G profile.
 4. Verify the actual provider backup/PITR tier, run an isolated restore drill,
    record RPO <= 24 h/RTO <= 4 h evidence, and run a deployment rollback drill.
 5. Re-run the full release gate, update the implementation log and project

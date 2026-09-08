@@ -1029,3 +1029,20 @@ Local unit tests cover the Pages overwrite/strip boundary, valid proof,
 forged/missing proof, all three forwarding headers, route-scoped token hashing,
 and redacted provenance logs. Real production-like staging evidence now closes
 this gate. M8 remains **IN PROGRESS** for its other external release gates.
+
+### M8.5E Deployed Guest Performance / FUC
+
+**DEPLOYED GUEST FUC = EXTERNALLY BLOCKED.** The exact useful-content condition
+is `.invitation-card` rendered after deployed invitation resolution. A small
+repository harness now executes five or more cache-disabled Chrome cold loads
+against the deployed Pages origin under unthrottled desktop and fixed synthetic
+4G (150 ms, 4 Mbps down, 3 Mbps up, CPU 4x) profiles. It emits only bounded
+per-run FUC/resolve/resource timing and min/median/nearest-rank-p90/max/mean
+summaries; the credential remains environment-only and is never printed.
+
+Harness unit tests pass 3/3, including bounded run count, p90 calculation, and
+credential-error redaction. Guest Web remains 6 files/19 tests, lint PASS, and
+production build PASS. Real execution is blocked because this process has no
+valid staging invitation credential or organizer token with which to create a
+disposable one. No deployed samples have been fabricated. M8 remains
+**IN PROGRESS**.

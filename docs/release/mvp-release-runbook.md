@@ -95,6 +95,24 @@ staging deployment must be checked with `curl -I https://<staging-guest-host>/`.
    unverified; a forged `CF-Connecting-IP` may be rejected upstream before an
    Edge event. Do not record the token, IP, or gateway proof.
 
+## Deployed Guest FUC benchmark
+
+Use a valid disposable staging credential and never place it on the command
+line, in a file, or in committed output:
+
+```powershell
+$env:STAGING_INVITATION_TOKEN = '<ephemeral-staging-invitation-token>'
+node scripts/m8_5e_guest_fuc_staging.mjs
+Remove-Item Env:STAGING_INVITATION_TOKEN
+```
+
+The harness runs at least five cold loads for normal desktop and five for fixed
+synthetic 4G (150 ms latency, 4 Mbps download, 3 Mbps upload, CPU 4x). FUC is
+the first `.invitation-card` rendered after real deployed resolve. Record the
+timing-only JSON and require fixed-4G nearest-rank p90 below 3,000 ms. Report
+failed runs separately, then remove the synthetic Wedding through canonical
+delete.
+
 ## Google Sign-In readiness
 
 Before an Android staging smoke, create a staging OAuth client for application
