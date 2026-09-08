@@ -158,6 +158,14 @@ returned correlation ID: all Pages probes must be trusted Cloudflare provenance;
 direct forged `CF-Connecting-IP` must be unverified. Do not add the secret or
 token to source, docs, or logs.
 
+The first deployed Pages normal and forwarding-header spoof probes returned
+HTTP 200 but Edge reported unverified provenance. The proxy uses matching names
+and fresh outbound headers, so a source-only boolean diagnostic now separates
+Pages secret presence/header addition from Edge secret/header presence/match.
+Redeploy both Pages and public Edge Functions, repeat the probes, and inspect
+only the correlation-linked boolean fields; no secret, header dump, token, or
+IP may be retained.
+
 ## Operator inputs and continuation
 
 1. Verify deployed `CF-Connecting-IP` anti-spoof provenance through the Pages

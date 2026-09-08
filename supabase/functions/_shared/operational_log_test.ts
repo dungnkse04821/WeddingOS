@@ -65,6 +65,9 @@ Deno.test('Class-D provenance logs only bounded provenance fields', () => {
       provenance: 'cloudflare',
       trustedGateway: true,
       trustedCfIpPresent: true,
+      gatewayProofEnvPresent: true,
+      gatewayProofHeaderPresent: true,
+      gatewayProofMatch: true,
     },
   );
 
@@ -78,7 +81,10 @@ Deno.test('Class-D provenance logs only bounded provenance fields', () => {
   if (
     event.provenance !== 'cloudflare' ||
     event.trusted_gateway !== true ||
-    event.trusted_cf_ip_present !== true
+    event.trusted_cf_ip_present !== true ||
+    event.gateway_proof_env_present !== true ||
+    event.gateway_proof_header_present !== true ||
+    event.gateway_proof_match !== true
   ) {
     throw new Error('Class-D provenance evidence was not logged.');
   }

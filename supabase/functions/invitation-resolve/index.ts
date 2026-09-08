@@ -27,6 +27,9 @@ export type ClassDProvenance = {
   provenance: 'cloudflare' | 'unverified';
   trustedGateway: boolean;
   trustedCfIpPresent: boolean;
+  gatewayProofEnvPresent: boolean;
+  gatewayProofHeaderPresent: boolean;
+  gatewayProofMatch: boolean;
   network: string;
 };
 
@@ -100,15 +103,21 @@ export function classDProvenance(
 ): ClassDProvenance {
   const expectedProof = expectedGatewayProof?.trim();
   const suppliedProof = request.headers.get(GATEWAY_PROOF_HEADER);
-  const trustedGateway = Boolean(
+  const gatewayProofEnvPresent = Boolean(expectedProof);
+  const gatewayProofHeaderPresent = Boolean(suppliedProof);
+  const gatewayProofMatch = Boolean(
     expectedProof && suppliedProof && constantTimeEquals(suppliedProof, expectedProof),
   );
+  const trustedGateway = gatewayProofMatch;
   const cloudflareIp = request.headers.get('cf-connecting-ip')?.trim();
   const trustedCfIpPresent = trustedGateway && Boolean(cloudflareIp);
   return {
     provenance: trustedCfIpPresent ? 'cloudflare' : 'unverified',
     trustedGateway,
     trustedCfIpPresent,
+    gatewayProofEnvPresent,
+    gatewayProofHeaderPresent,
+    gatewayProofMatch,
     network: trustedCfIpPresent ? cloudflareIp! : 'unverified-network',
   };
 }

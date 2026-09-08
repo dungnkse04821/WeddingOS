@@ -1004,6 +1004,16 @@ product capability but do not receive trusted network provenance. Completion
 logs add only `provenance`, `trusted_gateway`, and
 `trusted_cf_ip_present` alongside the existing correlation ID.
 
+Initial deployed Pages calls (normal plus spoofed `X-Forwarded-For`,
+`X-Real-IP`, and `Forwarded`) completed with HTTP 200 but all logged unverified
+provenance. Since source inspection confirms matching names and a freshly
+constructed outbound header set, the initial fields cannot distinguish missing
+Pages secret, absent/stripped header, missing Edge secret, or mismatch. The
+next source-only diagnostic logs only `gateway_proof_env_present`,
+`gateway_proof_header_added` (Pages), `gateway_proof_header_present`, and
+`gateway_proof_match` (Edge), correlated by request ID. It never records proof
+material, its length/hash, raw headers, IP, or token.
+
 Local unit tests cover the Pages overwrite/strip boundary, valid proof,
 forged/missing proof, all three forwarding headers, route-scoped token hashing,
 and redacted provenance logs. The shared secret must still be set and the

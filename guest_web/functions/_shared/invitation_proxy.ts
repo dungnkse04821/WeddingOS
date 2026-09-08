@@ -46,15 +46,24 @@ export async function proxyInvitationRequest(
   const origin = request.headers.get('origin');
   const cloudflareIp = request.headers.get('cf-connecting-ip');
   const gatewayProof = environment.WEDDINGOS_GATEWAY_PROOF?.trim();
+  const gatewayProofEnvPresent = Boolean(gatewayProof);
   if (contentType) headers.set('content-type', contentType);
   if (origin) headers.set('origin', origin);
   if (cloudflareIp) headers.set('cf-connecting-ip', cloudflareIp);
   // This secret comes only from the Pages environment, never from the request.
   if (gatewayProof) headers.set('x-weddingos-gateway-proof', gatewayProof);
 
-  return fetcher(target, {
+  const response = await fetcher(target, {
     method: request.method,
     headers,
     body: request.method === 'POST' ? request.body : undefined,
   });
+  // Boolean-only deployment diagnostics; proof material never reaches logs.
+  console.log(JSON.stringify({
+    event: 'pages_gateway_proof_forwarded',
+    gateway_proof_env_present: gatewayProofEnvPresent,
+    gateway_proof_header_added: gatewayProofEnvPresent,
+    correlation_id: response.headers.get('x-request-id'),
+  }));
+  return response;
 }

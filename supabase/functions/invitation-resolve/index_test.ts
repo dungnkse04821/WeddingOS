@@ -80,7 +80,7 @@ Deno.test('Class-D limiter keys require gateway proof for trusted Cloudflare pro
     },
   });
   const cloudflareProvenance = classDProvenance(cloudflareRequest, 'trusted-proof');
-  if (cloudflareProvenance.provenance !== 'cloudflare' || !cloudflareProvenance.trustedGateway || !cloudflareProvenance.trustedCfIpPresent || cloudflareProvenance.network !== '198.51.100.17') {
+  if (cloudflareProvenance.provenance !== 'cloudflare' || !cloudflareProvenance.trustedGateway || !cloudflareProvenance.trustedCfIpPresent || !cloudflareProvenance.gatewayProofEnvPresent || !cloudflareProvenance.gatewayProofHeaderPresent || !cloudflareProvenance.gatewayProofMatch || cloudflareProvenance.network !== '198.51.100.17') {
     throw new Error('Valid gateway proof must be required before trusting CF-Connecting-IP.');
   }
   const directRequest = new Request('http://local', {
@@ -93,7 +93,7 @@ Deno.test('Class-D limiter keys require gateway proof for trusted Cloudflare pro
     },
   });
   const directProvenance = classDProvenance(directRequest, 'trusted-proof');
-  if (directProvenance.provenance !== 'unverified' || directProvenance.trustedGateway || directProvenance.trustedCfIpPresent || directProvenance.network !== 'unverified-network') {
+  if (directProvenance.provenance !== 'unverified' || directProvenance.trustedGateway || directProvenance.trustedCfIpPresent || !directProvenance.gatewayProofEnvPresent || !directProvenance.gatewayProofHeaderPresent || directProvenance.gatewayProofMatch || directProvenance.network !== 'unverified-network') {
     throw new Error('Forged forwarding headers or gateway proof must not become trusted.');
   }
   if (networkSignal(directRequest) !== 'unverified-network') {

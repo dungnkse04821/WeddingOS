@@ -10,7 +10,10 @@ const environment = {
 
 describe('Cloudflare invitation proxy', () => {
   it('uses a fixed resolve target and forwards only the provider IP signal', async () => {
-    const fetcher = vi.fn(async () => new Response('ok'));
+    const fetcher = vi.fn(async () => new Response('ok', {
+      headers: { 'x-request-id': 'test-correlation-id' },
+    }));
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     await proxyInvitationRequest(new Request('https://guest.example/v1/invitation/resolve', {
       method: 'POST',
       headers: {
@@ -32,6 +35,13 @@ describe('Cloudflare invitation proxy', () => {
     expect(new Headers(init?.headers).get('x-real-ip')).toBeNull();
     expect(new Headers(init?.headers).get('forwarded')).toBeNull();
     expect(new Headers(init?.headers).get('x-weddingos-gateway-proof')).toBe('test-gateway-proof');
+    expect(log).toHaveBeenCalledWith(JSON.stringify({
+      event: 'pages_gateway_proof_forwarded',
+      gateway_proof_env_present: true,
+      gateway_proof_header_added: true,
+      correlation_id: 'test-correlation-id',
+    }));
+    log.mockRestore();
   });
 
   it('does not accept a client-selected function target', async () => {

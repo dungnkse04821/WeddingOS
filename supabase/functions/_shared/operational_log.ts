@@ -15,12 +15,18 @@ export type OperationalEvent = {
   provenance?: 'cloudflare' | 'unverified';
   trusted_gateway?: boolean;
   trusted_cf_ip_present?: boolean;
+  gateway_proof_env_present?: boolean;
+  gateway_proof_header_present?: boolean;
+  gateway_proof_match?: boolean;
 };
 
 export type ClassDOperationalContext = {
   provenance: 'cloudflare' | 'unverified';
   trustedGateway: boolean;
   trustedCfIpPresent: boolean;
+  gatewayProofEnvPresent: boolean;
+  gatewayProofHeaderPresent: boolean;
+  gatewayProofMatch: boolean;
 };
 
 export type WeddingDeleteFailureStage =
@@ -81,6 +87,9 @@ export function logEdgeCompletion(
         provenance: classDContext.provenance,
         trusted_gateway: classDContext.trustedGateway,
         trusted_cf_ip_present: classDContext.trustedCfIpPresent,
+        gateway_proof_env_present: classDContext.gatewayProofEnvPresent,
+        gateway_proof_header_present: classDContext.gatewayProofHeaderPresent,
+        gateway_proof_match: classDContext.gatewayProofMatch,
       }
       : {}),
   };

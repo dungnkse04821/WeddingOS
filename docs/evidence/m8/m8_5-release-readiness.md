@@ -139,6 +139,17 @@ Platform logs for returned correlation IDs must show trusted Cloudflare
 provenance for the Pages calls and unverified provenance for the direct
 forged-header call. No secret, token, or IP belongs in the evidence.
 
+The first deployed Pages probes returned HTTP 200 for normal and spoofed
+`X-Forwarded-For`, `X-Real-IP`, and `Forwarded` requests, but Edge logged
+unverified provenance with both trusted flags false. The source names and
+fresh-header proxy construction match, so the current log shape cannot
+distinguish a missing Pages secret, missing/stripped proof header, missing Edge
+secret, or secret mismatch. A follow-up diagnostic adds boolean-only Pages and
+Edge fields: `gateway_proof_env_present`, `gateway_proof_header_added`,
+`gateway_proof_header_present`, and `gateway_proof_match`. No value, length,
+hash, raw header, token, or IP is recorded. M8.5D remains externally blocked
+until those deployed diagnostics identify and correct the runtime condition.
+
 ## Cloudflare Pages import correction
 
 A real staging deployment proved Vite production build and Pages Functions
