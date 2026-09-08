@@ -90,9 +90,10 @@ staging deployment must be checked with `curl -I https://<staging-guest-host>/`.
    send normal and spoofed `X-Forwarded-For`, `X-Real-IP`, and `Forwarded`
    resolve requests through Pages, followed by a direct Supabase Function
    request with forged `CF-Connecting-IP` and gateway proof. Inspect Edge logs
-   by returned `X-Request-ID`: Pages calls must be `cloudflare`/trusted and the
-   direct call must be `unverified` with both trusted flags false. Do not record
-   the token, IP, or gateway proof.
+   by returned `X-Request-ID`: Pages calls must be `cloudflare`/trusted with
+   proof environment, header, and match booleans true. A direct normal call is
+   unverified; a forged `CF-Connecting-IP` may be rejected upstream before an
+   Edge event. Do not record the token, IP, or gateway proof.
 
 ## Google Sign-In readiness
 

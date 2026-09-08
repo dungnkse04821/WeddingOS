@@ -987,7 +987,7 @@ real-device E2E requirement. M8 remains **IN PROGRESS**.
 
 ### M8.5D CF-Connecting-IP Provenance
 
-**CF-CONNECTING-IP PROVENANCE = EXTERNALLY BLOCKED.** The prior Class-D limiter
+**CF-CONNECTING-IP PROVENANCE = PASS.** The prior Class-D limiter
 ignored `X-Forwarded-For` and `X-Real-IP`, but trusted a named
 `CF-Connecting-IP` header without proving that Cloudflare Pages, rather than a
 direct public Function caller, supplied it. Direct Class-D Functions are
@@ -1004,7 +1004,7 @@ product capability but do not receive trusted network provenance. Completion
 logs add only `provenance`, `trusted_gateway`, and
 `trusted_cf_ip_present` alongside the existing correlation ID.
 
-Initial deployed Pages calls (normal plus spoofed `X-Forwarded-For`,
+The initial deployed Pages calls (normal plus spoofed `X-Forwarded-For`,
 `X-Real-IP`, and `Forwarded`) completed with HTTP 200 but all logged unverified
 provenance. Since source inspection confirms matching names and a freshly
 constructed outbound header set, the initial fields cannot distinguish missing
@@ -1014,9 +1014,18 @@ next source-only diagnostic logs only `gateway_proof_env_present`,
 `gateway_proof_match` (Edge), correlated by request ID. It never records proof
 material, its length/hash, raw headers, IP, or token.
 
+Production Pages deployment of `b92d4ec`, with matching deployment-only proof
+secrets and redeployed public Edge Functions, proved the intended path: resolve
+returned HTTP 200 and its Edge event set `provenance=cloudflare`,
+`trusted_gateway=true`, `trusted_cf_ip_present=true`, and all three proof
+booleans true. Repeated normal, `X-Forwarded-For`, `X-Real-IP`, and `Forwarded`
+Pages probes retained those values. A direct resolve request without forged CF
+headers returned HTTP 200 through the unverified direct path; a direct forged
+`CF-Connecting-IP` attempt returned upstream HTTP 403 without a normal Edge
+event, so this evidence does not attribute that rejection to application code.
+The Boolean diagnostic fields remain as bounded provenance-health observability.
+
 Local unit tests cover the Pages overwrite/strip boundary, valid proof,
 forged/missing proof, all three forwarding headers, route-scoped token hashing,
-and redacted provenance logs. The shared secret must still be set and the
-Pages/Edge deployments retested with the runbook probes; until the operator
-inspects real correlation-ID logs, staging proof remains blocked. M8 remains
-**IN PROGRESS**.
+and redacted provenance logs. Real production-like staging evidence now closes
+this gate. M8 remains **IN PROGRESS** for its other external release gates.

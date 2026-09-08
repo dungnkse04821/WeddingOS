@@ -117,7 +117,7 @@ native Google account handoff requires the real staging device proof above.
 
 ## CF-Connecting-IP provenance
 
-**CF-CONNECTING-IP PROVENANCE = EXTERNALLY BLOCKED.** Source review found that
+**CF-CONNECTING-IP PROVENANCE = PASS.** Source review found that
 the former Pages proxy stripped `X-Forwarded-For` and `X-Real-IP` but relayed
 `CF-Connecting-IP` without an enforceable Pages-to-Edge origin proof. Because
 the public Class-D Supabase Functions can also be called directly, that header
@@ -132,14 +132,22 @@ request, it keeps the public capability flow functional in the
 `unverified-network` rate-limit partition. Logs emit only bounded provenance
 flags and correlation ID, never raw IP, token, or proof.
 
-To close staging evidence, the operator must set the same secret in Pages and
-both public Edge environments, redeploy them, and send the documented Pages and
-direct spoof probes with a synthetic credential only in the operator shell.
-Platform logs for returned correlation IDs must show trusted Cloudflare
-provenance for the Pages calls and unverified provenance for the direct
-forged-header call. No secret, token, or IP belongs in the evidence.
+Cloudflare Pages Production deployed commit `b92d4ec` with the same
+deployment-only proof secret as the Supabase Edge project. Redeployed
+`invitation-resolve` and `invitation-rsvp` received a real Pages resolve call
+with HTTP 200 and all trusted fields true: `provenance=cloudflare`,
+`trusted_gateway`, `trusted_cf_ip_present`, `gateway_proof_env_present`,
+`gateway_proof_header_present`, and `gateway_proof_match`.
 
-The first deployed Pages probes returned HTTP 200 for normal and spoofed
+Normal and spoofed Pages probes for `X-Forwarded-For`, `X-Real-IP`, and
+`Forwarded` all returned HTTP 200 with the same trusted evidence. The client
+headers therefore did not replace the secret-bound Cloudflare provenance path.
+A direct Supabase resolve request without a forged CF header returned HTTP 200
+on the unverified direct-network path. A direct request carrying forged
+`CF-Connecting-IP` returned HTTP 403 without an Edge structured event; it was
+rejected upstream before trusted Edge provenance evaluation.
+
+The initial deployed Pages probes had returned HTTP 200 for normal and spoofed
 `X-Forwarded-For`, `X-Real-IP`, and `Forwarded` requests, but Edge logged
 unverified provenance with both trusted flags false. The source names and
 fresh-header proxy construction match, so the current log shape cannot
@@ -147,8 +155,9 @@ distinguish a missing Pages secret, missing/stripped proof header, missing Edge
 secret, or secret mismatch. A follow-up diagnostic adds boolean-only Pages and
 Edge fields: `gateway_proof_env_present`, `gateway_proof_header_added`,
 `gateway_proof_header_present`, and `gateway_proof_match`. No value, length,
-hash, raw header, token, or IP is recorded. M8.5D remains externally blocked
-until those deployed diagnostics identify and correct the runtime condition.
+hash, raw header, token, or IP is recorded. The production retest now confirms
+the configured proof is present, forwarded, and matched. These Boolean fields
+remain as safe, useful provenance-health evidence.
 
 ## Cloudflare Pages import correction
 

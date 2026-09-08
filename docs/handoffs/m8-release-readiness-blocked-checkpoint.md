@@ -141,7 +141,7 @@ recorded.
 
 ## CF-Connecting-IP provenance gate
 
-**EXTERNALLY BLOCKED.** Public Class-D Functions remain directly reachable, so
+**PASS.** Public Class-D Functions remain directly reachable, so
 the old header-only trust model could not prove that `CF-Connecting-IP` came
 from Cloudflare. Pages now overwrites client forwarding headers and attaches a
 secret-bound `WEDDINGOS_GATEWAY_PROOF`; Edge trusts a CF IP only when the same
@@ -150,34 +150,34 @@ forged proof remains an allowed public capability call but is rate-limited under
 `unverified-network`, never under a forged trusted IP. No raw IP, invitation
 token, or proof is logged.
 
-To resume, set the same new secret in Cloudflare Pages and the deployed
-`invitation-resolve`/`invitation-rsvp` Functions, redeploy, then run the
-runbook's normal, spoofed-Pages, and direct forged-header probes using only an
-ephemeral synthetic token in the operator shell. Inspect platform logs by
-returned correlation ID: all Pages probes must be trusted Cloudflare provenance;
-direct forged `CF-Connecting-IP` must be unverified. Do not add the secret or
-token to source, docs, or logs.
+Cloudflare Pages Production deployed `b92d4ec`; the matching proof secret was
+present in Pages and Supabase Edge, and both public Functions were redeployed.
+Normal and spoofed `X-Forwarded-For`, `X-Real-IP`, and `Forwarded` Pages resolve
+probes returned HTTP 200 and all recorded trusted Cloudflare provenance with
+proof environment, header, and match booleans true. A direct resolve request
+without forged CF headers returned HTTP 200 through the unverified direct path.
+A direct forged `CF-Connecting-IP` request returned upstream HTTP 403 without
+a normal Edge event; it was rejected upstream before trusted Edge provenance
+evaluation. No raw IP, token, or proof was retained.
 
-The first deployed Pages normal and forwarding-header spoof probes returned
+The first deployed Pages normal and forwarding-header spoof probes had returned
 HTTP 200 but Edge reported unverified provenance. The proxy uses matching names
 and fresh outbound headers, so a source-only boolean diagnostic now separates
 Pages secret presence/header addition from Edge secret/header presence/match.
-Redeploy both Pages and public Edge Functions, repeat the probes, and inspect
-only the correlation-linked boolean fields; no secret, header dump, token, or
-IP may be retained.
+The production retest closed that ambiguity. The Boolean diagnostics remain as
+safe correlation-linked provenance health evidence; no secret, header dump,
+token, or IP may be retained.
 
 ## Operator inputs and continuation
 
-1. Verify deployed `CF-Connecting-IP` anti-spoof provenance through the Pages
-   to Supabase path, without recording client IPs.
-2. Preserve the already-passing synthetic Guest evidence and run any remaining
+1. Preserve the already-passing synthetic Guest evidence and run any remaining
    organizer/archive/cover smoke only on disposable synthetic data.
-3. Configure and verify Android Google Sign-In, then measure the 500-task and
+2. Configure and verify Android Google Sign-In, then measure the 500-task and
    300-guest fixtures on the agreed reference device/emulator.
-4. Measure the deployed Guest Web resolve path under the approved 4G profile.
-5. Verify the actual provider backup/PITR tier, run an isolated restore drill,
+3. Measure the deployed Guest Web resolve path under the approved 4G profile.
+4. Verify the actual provider backup/PITR tier, run an isolated restore drill,
    record RPO <= 24 h/RTO <= 4 h evidence, and run a deployment rollback drill.
-6. Re-run the full release gate, update the implementation log and project
+5. Re-run the full release gate, update the implementation log and project
    state, then create the authoritative `m8-security-nfr-hardening-checkpoint`.
 
 ## Security and stop boundary
