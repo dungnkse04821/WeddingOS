@@ -156,6 +156,23 @@ provider tier documents and the operator verifies that backup/PITR capability.
 Permanent Wedding deletion remains irreversible to the user and is not an
 individual-data restore mechanism.
 
+Before release, record the project tier, scheduled backup cadence/retention,
+and PITR availability from the provider control plane. If those controls are
+absent, classify RPO as provider-tier constrained; a manual logical dump does
+not establish an automatic RPO <= 24 hours. Create a synthetic fixture, start
+the recovery clock after the backup is selected, restore only to a separate
+temporary target, then verify schemas, functions, tables, constraints, RLS,
+policies/grants, fixture counts, an organizer RPC, and hidden-schema exposure.
+Record preparation, restore, verification, and total timings before claiming
+RTO <= 4 hours. State separately whether Storage objects are protected by the
+provider mechanism.
+
+For the rollback drill, return Cloudflare Pages to a known-good deployment and
+redeploy the previous tested Edge source, then run Guest resolve/RSVP and
+organizer deletion-retry smoke. Use forward fixes for normal database migration
+problems; do not overwrite active staging or promise destructive down
+migrations. Retain no dump, credentials, tokens, or PII in Git or evidence.
+
 ## Incident first steps
 
 Authentication, Postgres, Storage, and Edge failures fail closed and surface

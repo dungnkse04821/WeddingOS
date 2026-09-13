@@ -1049,3 +1049,18 @@ Transferred bytes were approximately 68.3 KB per run. The invitation credential
 remained process-only and was cleared after capture. The disposable benchmark
 Wedding still needs canonical delete by the staging operator. M8 remains
 **IN PROGRESS** for Android, Google, recovery, and other external release gates.
+
+### M8.5F Backup / Restore / Rollback / RPO-RTO
+
+**M8.5F = EXTERNALLY BLOCKED.** The runtime exposes only publishable staging
+connection inputs, not Supabase project management, provider backup/PITR,
+isolated restore, Cloudflare rollback, or organizer authority. Consequently
+there is no evidence for scheduled backups, PITR, manual logical backup, a real
+restore target, an RTO measurement, or an achievable RPO. The RPO <= 24 h and
+RTO <= 4 h system-incident targets remain conditional, not satisfied claims.
+
+The release runbook now requires a separate-target provider restore drill and
+known-good Pages/Edge rollback drill before this gate can close. Permanent
+Wedding deletion remains user-irreversible and outside the restore guarantee.
+The retained M8.5E synthetic Wedding likewise requires canonical delete by an
+operator with staging organizer authority. M8 remains **IN PROGRESS**.

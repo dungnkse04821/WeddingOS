@@ -202,6 +202,35 @@ Both normal (2,142 ms) and synthetic-4G (899 ms) FUC p90 values are below
 synthetic Wedding still requires operator-initiated canonical Wedding deletion;
 no direct SQL cleanup was used or claimed.
 
+## M8.5F backup / restore / rollback / RPO-RTO
+
+**M8.5F = EXTERNALLY BLOCKED.** The approved system-incident target remains
+RPO <= 24 hours and RTO <= 4 hours, conditional on actual provider-tier
+capability. Permanent user-authorized Wedding deletion is intentionally
+irreversible and is not an individual-data restore target.
+
+This harness has only publishable staging connection settings. It has no
+Supabase management/project access, backup/PITR control, isolated recovery
+project, Cloudflare rollback control, or staging organizer session. Therefore
+it could not determine whether the staging project provides scheduled backups,
+PITR, manual logical backups, or another provider-supported mechanism. No
+backup artifact, restore, rollback, RTO measurement, or RPO claim was created.
+
+The required operator drill is: create a bounded synthetic fixture; create or
+identify a provider-supported backup; restore only to a separate temporary
+target; verify schemas, functions, constraints, RLS, policies/grants, fixture
+counts, an organizer RPC, and hidden-schema boundaries; then record preparation,
+restore, verification, and total recovery timings. Independently rollback a
+known-good Cloudflare Pages deployment and redeploy the prior Edge source,
+then rerun Guest resolve/RSVP and organizer delete-retry smoke. Database
+migrations remain forward-fix or isolated-restore only; no destructive down
+migration is promised. Storage object recovery is separate from database backup
+unless the selected provider control explicitly includes it.
+
+The M8.5E disposable benchmark Wedding also remains pending canonical Wedding
+delete because no staging organizer token is available here. No direct SQL
+cleanup was attempted.
+
 ## Cloudflare Pages import correction
 
 A real staging deployment proved Vite production build and Pages Functions

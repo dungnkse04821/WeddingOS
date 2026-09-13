@@ -177,8 +177,12 @@ token, or IP may be retained.
    p90 was 2,142 ms and 899 ms respectively, below 3,000 ms.
 3. Configure and verify Android Google Sign-In, then measure the 500-task and
    300-guest fixtures on the agreed reference device/emulator.
-4. Verify the actual provider backup/PITR tier, run an isolated restore drill,
-   record RPO <= 24 h/RTO <= 4 h evidence, and run a deployment rollback drill.
+4. Provide staging management and organizer authority. Determine scheduled
+   backup/PITR capability; restore a bounded synthetic fixture to an isolated
+   target; verify database security and organizer RPC behavior; record actual
+   RPO/RTO; rollback a known-good Pages deployment and prior Edge source; then
+   canonically delete the M8.5E benchmark Wedding. Do not overwrite staging or
+   restore a user-authorized permanent Wedding deletion.
 5. Re-run the full release gate, update the implementation log and project
    state, then create the authoritative `m8-security-nfr-hardening-checkpoint`.
 
