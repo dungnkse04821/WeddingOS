@@ -231,6 +231,37 @@ The M8.5E disposable benchmark Wedding also remains pending canonical Wedding
 delete because no staging organizer token is available here. No direct SQL
 cleanup was attempted.
 
+## M8.5G Android physical runtime benchmark
+
+**M8.5G = EXTERNALLY BLOCKED.** The approved target is meaningful, interactive
+task-list and guest-list content in under 2,000 ms for a 500-task / 300-guest
+synthetic Wedding. M8.4's 26 ms task and 19 ms guest widget-test medians are
+local render evidence only; they are not physical Android proof.
+
+This host has Flutter, but no `adb`, Android SDK, emulator, or attached
+physical device. It also has no staging organizer session or 500-task / 300-
+guest benchmark fixture. No Android build was installed, no physical runtime
+timings were collected, and no threshold is claimed as passed.
+
+The operator procedure is intentionally bounded: build the staging APK with
+only `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `GOOGLE_WEB_CLIENT_ID` public
+defines; install it on a real Android device (not an emulator); and use an
+already authenticated organizer session with an ACTIVE synthetic Wedding
+containing 500 tasks and 300 guests. Run five cold starts after
+`adb shell am force-stop com.vibecode.weddingos.organizer_app`, measuring from
+`adb shell am start -W -n com.vibecode.weddingos.organizer_app/.MainActivity`
+until usable authenticated workspace content is visible. Separately run five
+Planning checklist loads and five Guest Directory loads, measuring from the
+tap on the respective Home-screen action until a meaningful task/guest row is
+visible and interactable; a spinner or skeleton is not a result.
+
+Record only device model, Android version, build type/commit, network state,
+cache/session state, per-run milliseconds, and pass/fail. Retain every run and
+compute min, median, nearest-rank p90, max, and mean; with five samples p90 is
+the maximum. Keep screen recordings and any device identifiers outside Git,
+and never retain organizer identities, JWTs, Google tokens, or other secrets.
+M8 remains **IN PROGRESS** pending this real-device evidence.
+
 ## Cloudflare Pages import correction
 
 A real staging deployment proved Vite production build and Pages Functions

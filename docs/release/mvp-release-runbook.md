@@ -139,6 +139,41 @@ and loss of authenticated access. Record only device/build identity and
 pass/fail outcomes. Never capture OAuth secrets, access/refresh/ID tokens, raw
 callback data, or account identifiers.
 
+## Android physical runtime benchmark
+
+The approved Android target is meaningful, interactive task and guest list
+content in under 2,000 ms at a synthetic ACTIVE Wedding with 500 tasks and 300
+guests. A real Android device is mandatory; emulator-only and widget-test
+results are supporting evidence, not release proof. Use a persisted staging
+organizer session and build/install only with public defines:
+
+```powershell
+Set-Location organizer_app
+flutter build apk --debug `
+  --dart-define=SUPABASE_URL=https://<staging-project>.supabase.co `
+  --dart-define=SUPABASE_ANON_KEY=<publishable-anon-key> `
+  --dart-define=GOOGLE_WEB_CLIENT_ID=<google-web-client-id>
+adb devices
+adb -s <device-serial> install -r .\build\app\outputs\flutter-apk\app-debug.apk
+```
+
+For each of five cold session-resume runs, fully stop the process with
+`adb -s <device-serial> shell am force-stop com.vibecode.weddingos.organizer_app`,
+then launch `com.vibecode.weddingos.organizer_app/.MainActivity` with
+`adb -s <device-serial> shell am start -W -n com.vibecode.weddingos.organizer_app/.MainActivity` and measure until authenticated
+workspace content is visible and usable. `am start -W` alone is not the product
+timing; it only defines the reproducible launch boundary. For five Planning
+checklist and five Guest Directory runs, start at the Home-screen action tap
+and stop only when a meaningful task or guest row is visible and interactable.
+Do not count a spinner or skeleton.
+
+Record every result with only device model, Android version, build type/commit,
+network state, session/cache state, elapsed milliseconds, and success/failure.
+Report min, median, nearest-rank p90, max, and mean. With five samples p90 is
+the maximum; retain slow runs. Keep any screen recording, device serial,
+organizer identity, tokens, and fixture credential outside Git. Delete the
+synthetic Wedding canonically after evidence capture.
+
 ## Rollback and recovery
 
 - Guest Web: retain the last known-good Pages deployment and use the provider's

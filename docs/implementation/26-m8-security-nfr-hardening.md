@@ -1064,3 +1064,18 @@ known-good Pages/Edge rollback drill before this gate can close. Permanent
 Wedding deletion remains user-irreversible and outside the restore guarantee.
 The retained M8.5E synthetic Wedding likewise requires canonical delete by an
 operator with staging organizer authority. M8 remains **IN PROGRESS**.
+
+### M8.5G Android Physical Runtime Benchmark
+
+**M8.5G = EXTERNALLY BLOCKED.** The approved Android target remains under two
+seconds for meaningful, interactive task and guest list content at 500 tasks
+and 300 guests. M8.4 widget tests remain useful local evidence only, not a
+substitute for a physical Android runtime. This host has no `adb`, Android SDK,
+emulator, attached physical device, staging organizer session, or representative
+staging fixture, so no device measurement or pass claim was made.
+
+The release runbook now specifies five cold session-resume starts, five
+Planning checklist loads, and five Guest Directory loads on a real Android
+device using a synthetic ACTIVE Wedding. It defines the visible/interactable
+content stop condition, retained-run nearest-rank p90 calculation, public
+build defines, and redacted evidence boundary. M8 remains **IN PROGRESS**.

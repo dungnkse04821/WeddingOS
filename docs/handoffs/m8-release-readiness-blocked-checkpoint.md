@@ -175,8 +175,11 @@ token, or IP may be retained.
 2. Delete the completed deployed Guest FUC synthetic Wedding through canonical
    Wedding delete. M8.5E passed with five normal and five fixed-4G cold loads;
    p90 was 2,142 ms and 899 ms respectively, below 3,000 ms.
-3. Configure and verify Android Google Sign-In, then measure the 500-task and
-   300-guest fixtures on the agreed reference device/emulator.
+3. Configure and verify Android Google Sign-In, then use a real physical
+   Android device (not an emulator) to measure five cold session-resume starts,
+   five 500-task Planning checklist loads, and five 300-guest Guest Directory
+   loads. Require meaningful interactive content in under two seconds; retain
+   every timing and report nearest-rank p90 (the maximum at five samples).
 4. Provide staging management and organizer authority. Determine scheduled
    backup/PITR capability; restore a bounded synthetic fixture to an isolated
    target; verify database security and organizer RPC behavior; record actual
