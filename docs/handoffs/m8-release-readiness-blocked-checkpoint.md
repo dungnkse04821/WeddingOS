@@ -172,11 +172,9 @@ token, or IP may be retained.
 
 1. Preserve the already-passing synthetic Guest evidence and run any remaining
    organizer/archive/cover smoke only on disposable synthetic data.
-2. Supply a valid disposable invitation credential only through
-   `STAGING_INVITATION_TOKEN`, run
-   `node scripts/m8_5e_guest_fuc_staging.mjs`, retain only timing output, clear
-   the variable, and delete the fixture through canonical Wedding delete. The
-   fixed-4G nearest-rank p90 must be below 3,000 ms.
+2. Delete the completed deployed Guest FUC synthetic Wedding through canonical
+   Wedding delete. M8.5E passed with five normal and five fixed-4G cold loads;
+   p90 was 2,142 ms and 899 ms respectively, below 3,000 ms.
 3. Configure and verify Android Google Sign-In, then measure the 500-task and
    300-guest fixtures on the agreed reference device/emulator.
 4. Verify the actual provider backup/PITR tier, run an isolated restore drill,

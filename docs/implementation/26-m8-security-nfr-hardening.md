@@ -1032,7 +1032,7 @@ this gate. M8 remains **IN PROGRESS** for its other external release gates.
 
 ### M8.5E Deployed Guest Performance / FUC
 
-**DEPLOYED GUEST FUC = EXTERNALLY BLOCKED.** The exact useful-content condition
+**DEPLOYED GUEST FUC = PASS.** The exact useful-content condition
 is `.invitation-card` rendered after deployed invitation resolution. A small
 repository harness now executes five or more cache-disabled Chrome cold loads
 against the deployed Pages origin under unthrottled desktop and fixed synthetic
@@ -1040,9 +1040,12 @@ against the deployed Pages origin under unthrottled desktop and fixed synthetic
 per-run FUC/resolve/resource timing and min/median/nearest-rank-p90/max/mean
 summaries; the credential remains environment-only and is never printed.
 
-Harness unit tests pass 3/3, including bounded run count, p90 calculation, and
-credential-error redaction. Guest Web remains 6 files/19 tests, lint PASS, and
-production build PASS. Real execution is blocked because this process has no
-valid staging invitation credential or organizer token with which to create a
-disposable one. No deployed samples have been fabricated. M8 remains
-**IN PROGRESS**.
+Real deployed staging evidence retained five normal and five synthetic-4G cold
+loads, all with `ready_state=complete`. Nearest-rank p90 (the maximum of five
+samples) was 2,142 ms normal and 899 ms synthetic 4G, both below the 3,000 ms
+target. The first normal sample was the retained outlier at 2,142 ms FUC and
+1,938 ms resolve; no root cause is inferred and no optimization is justified.
+Transferred bytes were approximately 68.3 KB per run. The invitation credential
+remained process-only and was cleared after capture. The disposable benchmark
+Wedding still needs canonical delete by the staging operator. M8 remains
+**IN PROGRESS** for Android, Google, recovery, and other external release gates.

@@ -113,6 +113,11 @@ timing-only JSON and require fixed-4G nearest-rank p90 below 3,000 ms. Report
 failed runs separately, then remove the synthetic Wedding through canonical
 delete.
 
+M8.5E staging evidence passed with all five normal and five fixed-4G runs
+retained. The nearest-rank p90 results were 2,142 ms normal and 899 ms fixed
+4G, both below the 3,000 ms target. Preserve the procedure for future releases;
+do not retain invitation credentials in benchmark evidence.
+
 ## Google Sign-In readiness
 
 Before an Android staging smoke, create a staging OAuth client for application

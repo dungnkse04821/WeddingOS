@@ -161,7 +161,7 @@ remain as safe, useful provenance-health evidence.
 
 ## M8.5E deployed Guest performance / FUC
 
-**DEPLOYED GUEST FUC = EXTERNALLY BLOCKED.** The deployed target is
+**DEPLOYED GUEST FUC = PASS.** The deployed target is
 `https://weddingos-staging.pages.dev`. FUC is the first rendered
 `.invitation-card` after the real `/v1/invitation/resolve` response; the static
 shell, loading card, spinner, skeleton, and error states do not qualify.
@@ -179,13 +179,28 @@ nearest-rank p90, max, and mean. With five samples, nearest-rank p90 is the
 maximum sample. Source inspection found no service worker. The acceptance gate
 is fixed-4G FUC p90 below 3,000 ms.
 
-No valid `STAGING_INVITATION_TOKEN` is available to this harness process, and
-the browser has no retained live invitation session. Therefore no real timing
-samples or PASS claim exist yet. The operator must supply a disposable valid
-staging credential in process environment only, run the harness, retain only
-its bounded JSON timings, clear the variable, and clean up its synthetic
-Wedding through canonical Wedding delete. No token, full invitation URL, JWT,
-email, secret, or raw IP may enter evidence.
+The real deployed benchmark retained all ten successful cold loads; each
+reached `ready_state=complete`, with no service worker and no omitted failures.
+The invitation credential was process/environment-only and was cleared after
+capture. No token, full invitation URL, JWT, email, secret, or raw IP entered
+the evidence.
+
+| Profile | FUC samples (ms) | FUC min / median / p90 / max / mean (ms) | Resolve samples (ms) | Resolve min / median / p90 / max / mean (ms) |
+| --- | --- | --- | --- | --- |
+| Normal desktop | 2142, 468, 478, 490, 452 | 452 / 478 / 2142 / 2142 / 806 | 1938, 331, 302, 297, 284 | 284 / 302 / 1938 / 1938 / 630 |
+| Synthetic fixed 4G | 778, 741, 781, 899, 829 | 741 / 781 / 899 / 899 / 806 | 287, 287, 305, 442, 355 | 287 / 305 / 442 / 442 / 335 |
+
+Transferred resource bytes were 68,331–68,333 bytes per run, approximately
+68.3 KB. Nearest-rank p90 was used; with five samples it equals the maximum,
+so the evidence is a bounded staging sample rather than a statistically broad
+load test. The first normal run (FUC 2,142 ms; resolve 1,938 ms) was retained
+in the max, p90, and mean. It still passes the 3,000 ms target, so no source
+optimization is justified by this evidence.
+
+Both normal (2,142 ms) and synthetic-4G (899 ms) FUC p90 values are below
+3,000 ms. The deployed Guest FUC gate is therefore closed. The disposable
+synthetic Wedding still requires operator-initiated canonical Wedding deletion;
+no direct SQL cleanup was used or claimed.
 
 ## Cloudflare Pages import correction
 
